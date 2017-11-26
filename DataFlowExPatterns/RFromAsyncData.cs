@@ -13,17 +13,69 @@ using System.Collections.Concurrent;
 
 namespace DataFlowExPatterns
 {
+    public static class DataFlowEXPatternUtilities
+    {
+        public static string SetsOfTerm1KeyFunctionDelimiter = ",";
+        public static string SetsOfTerm1KeyFunction(IEnumerable<string> _keys)
+        {
+            return _keys.Aggregate(new StringBuilder(), (current, next) => current.Append(SetsOfTerm1KeyFunctionDelimiter).Append(next)).ToString();
+        }
+
+    }
+
+    public class  DynamicBuffers: DataDispatcher<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate), string>
+    {
+            public DynamicBuffers() : base(@out => @out.sig)
+            {
+            }
+
+            /// <summary>
+            /// This function will create one instance of a TransientBuffer,and will only be called once for each distinct sig (the first time)
+            /// </summary>
+            protected override TransientBuffer CreateChildFlow(string sig)
+            {
+                // dynamically create a buffer by the dispatchKey (i.e. the value of sig)
+                var _buffer = new TransientBuffer();
+
+                //no need to call RegisterChild(_buffer) here as DataDispatcher will call automatically
+                return _buffer;
+            }
+   }
+
+	/// <summary>
+	/// Transient Buffer node for a single sig
+	/// </summary>
+	internal class TransientBuffer: Dataflow<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)>
+    {
+        // WaitQueue
+        private BufferBlock<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)> _buffer;
+
+
+		public TransientBuffer() : base(DataflowOptions.Default)
+		{
+
+           this._buffer = new BufferBlock<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)>();
+
+			RegisterChild(_buffer);
+		}
+
+		public override ITargetBlock<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)> InputBlock { get { return this._buffer; } }
+        public override ISourceBlock<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)> OutputBlock { get { return this._buffer; } }
+
+
+        protected override void CleanUp(Exception e)
+		{
+			base.CleanUp(e);
+			// deallocate any  messages s   tu      ck on th einternal buffer
+		}
+	}
+
     public class RFromInputAnd1Term : Gridsum.DataflowEx.Dataflow<(string k1, string k2, string c1, double hr)>
     {
         // A thread-safe place to keep track of which values of t1 are ReadyToCalculate
         ConcurrentObservableDictionary<string, byte> t1AreReadyToCalculate = new ConcurrentObservableDictionary<string, byte>();
         // a thread-safe place to keep track of which values of t1 are FetchingTerm1
         ConcurrentObservableDictionary<string, Task> t1AreFetchingTerm1 = new ConcurrentObservableDictionary<string, Task>();
-
-        static string SetsOfTerm1KeyFunctionDelimiter = ",";
-        static string SetsOfTerm1KeyFunction(IEnumerable<string> _keys) {
-            return _keys.Aggregate(new StringBuilder(), (current, next) => current.Append(SetsOfTerm1KeyFunctionDelimiter).Append(next)).ToString();
-        }
 
         // Head
         private ITargetBlock<(string k1, string k2, string c1, double hr)> _headBlock;
@@ -41,7 +93,7 @@ namespace DataFlowExPatterns
             {
                 // create a signature from the set of keys found in hRs
                 // ToDo don't use a string, use a collection of keys
-                string sig = SetsOfTerm1KeyFunction(new List<string> { _input.c1 });
+                string sig = DataFlowEXPatternUtilities.SetsOfTerm1KeyFunction(new List<string> { _input.c1 });
 
                 // Are all the keys of hRs in the cReadyToCalculate dictionary? set the output bool accordingly
                 // ToDo don't use a string, use a collection of keys, and get back the collection of keys NOT in t1AreReadyToCalculate
@@ -77,9 +129,12 @@ namespace DataFlowExPatterns
 
             // a collection of DataFlowEx "buffers" to hold specific classes of messages
             ConcurrentDictionary<string, Dataflow<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)>> _buffers = new ConcurrentDictionary<string, Dataflow<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)>>();
-            // this block accepts messages where isReadyToCalculate is false, and buffers them
-            var _waitQueue = new TransformBlock<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate), (string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)>(_input =>
+            Dataflow<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)> _emitterBlock;
+        // this block accepts messages where isReadyToCalculate is false, and buffers them
+        var _waitQueue = new TransformBlock<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate), (string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)>(_input =>
             {
+                 // Emitter
+                
                 // if all the keys in this messages hRs dictionary are in the keys of AreReadyToCalculate, just forward the message
                 // Put the test here again at the top of the block in case the termn was populated between the time the message left the _accepter and got sent to the _waitQueue
                 // ToDo don't use a string, use a collection of keys
@@ -95,7 +150,7 @@ namespace DataFlowExPatterns
                     // if not, create a dataflowEX for this class of messages and put the message into it.
                     _buffers[_input.sig] = new BufferBlock<(string k1, string k2, string c1, double hr, string sig, bool isReadyToCalculate)>().ToDataflow();
                     _buffers[_input.sig].Name = _input.sig;
-                    this._placeholder.LinkTo(_buffers[_input.sig]. , @out => @out.sig== _input.sig);
+                    _emitterBlock.LinkTo(_buffers[_input.sig] , @out => @out.sig== _input.sig);
                     _terminator.RegisterDependency(_buffers[_input.sig]);
 
                 }
@@ -146,7 +201,7 @@ namespace DataFlowExPatterns
             this.RegisterChild(_waitQueue);
 
             this._headBlock = _accepter.InputBlock;
-            this._placeholder = _waitQueue.InputBlock;
+            //this._placeholder = _waitQueue.InputBlock;
 
             // ToDo: start PreparingToCalculate to prepoulate the initial list of C key signatures
         }
