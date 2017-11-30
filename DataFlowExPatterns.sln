@@ -1,13 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.27004.2006
+VisualStudioVersion = 15.0.26730.16
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlowExPatterns", "DataFlowExPatterns\DataFlowExPatterns.csproj", "{460E5CE2-5AFC-49DB-A4CE-A59D4A143875}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DataFlowExPatterns", "DataFlowExPatterns\DataFlowExPatterns.csproj", "{460E5CE2-5AFC-49DB-A4CE-A59D4A143875}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataObjects", "DataObjects\DataObjects.csproj", "{5AEC0C7F-6849-4F0E-98D9-9F46D5433A1F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DataFlowExPatternsUnitTests", "DatFlowExPatternsUnitTests\DataFlowExPatternsUnitTests.csproj", "{B6C6EFB8-B110-4C51-862F-B8FD8B633878}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataFlowExPatternsUnitTests", "DatFlowExPatternsUnitTests\DataFlowExPatternsUnitTests.csproj", "{B6C6EFB8-B110-4C51-862F-B8FD8B633878}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9FF056B0-9ABC-49B3-A3A5-297A05E998BD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -19,10 +19,6 @@ Global
 		{460E5CE2-5AFC-49DB-A4CE-A59D4A143875}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{460E5CE2-5AFC-49DB-A4CE-A59D4A143875}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{460E5CE2-5AFC-49DB-A4CE-A59D4A143875}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5AEC0C7F-6849-4F0E-98D9-9F46D5433A1F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5AEC0C7F-6849-4F0E-98D9-9F46D5433A1F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5AEC0C7F-6849-4F0E-98D9-9F46D5433A1F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5AEC0C7F-6849-4F0E-98D9-9F46D5433A1F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B6C6EFB8-B110-4C51-862F-B8FD8B633878}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B6C6EFB8-B110-4C51-862F-B8FD8B633878}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B6C6EFB8-B110-4C51-862F-B8FD8B633878}.Release|Any CPU.ActiveCfg = Release|Any CPU

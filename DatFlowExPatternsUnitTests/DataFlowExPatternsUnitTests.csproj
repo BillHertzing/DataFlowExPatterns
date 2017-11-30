@@ -11,9 +11,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="5.0.0-beta0004" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.3.0-preview-20170628-02" />
     <PackageReference Include="Moq" Version="4.7.145" />
-    <PackageReference Include="NLog" Version="4.4.12" />
     <PackageReference Include="NLog.Config" Version="4.4.12" />
     <PackageReference Include="xunit" Version="2.2.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.2.0" />
@@ -21,10 +21,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DataFlowExPatterns\DataFlowExPatterns.csproj" />
-    <ProjectReference Include="..\DataObjects\DataObjects.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="App.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="NLog.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="xunit.runner.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

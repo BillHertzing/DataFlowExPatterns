@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>ATAP.DataFlowExPatterns</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -10,11 +11,8 @@
 
   <ItemGroup>
     <PackageReference Include="Gridsum.DataflowEx" Version="2.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
     <PackageReference Include="Swordfish.NET.CollectionsV3" Version="3.0.0.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\DataObjects\DataObjects.csproj" />
   </ItemGroup>
 
 </Project>
