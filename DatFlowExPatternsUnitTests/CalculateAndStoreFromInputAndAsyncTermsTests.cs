@@ -161,44 +161,79 @@ namespace DatFlowExPatternsUnitTests {
             }
             public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
         }
+        public class ParseSingleInputStringFormattedAsJSONCollectionToAction : Dataflow<string>
+        {
+            private ITargetBlock<string> _headBlock;
+            public ParseSingleInputStringFormattedAsJSONCollectionToAction(Action<InputMessage<string>> action) : base(CalculateAndStoreFromInputAndAsyncTermsOptions.Default)
+            {
+                var _accepterJSON = new ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+                var _terminator = DataflowUtils.FromDelegate<InputMessage<string>>(action);
+                _accepterJSON.Name = "_accepterJSON";
+                _terminator.Name = "_terminator";
+                this.RegisterChild(_accepterJSON);
+                this.RegisterChild(_terminator);
+                _accepterJSON.LinkTo(_terminator);
+                _terminator.RegisterDependency(_accepterJSON);
+                this._headBlock = _accepterJSON.InputBlock;
+            }
+            public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
+        }
         [Theory]
         [InlineData("{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}")]
         public async void ParseSingleInputStringFormattedAsJSONToInputMessageTest(string inTestData)
         {
             //var parseSingleInputStringFormattedAsJSONToConsole = new ParseSingleInputStringFormattedAsJSONToConsole();
-            InputMessage<string> result;
+            InputMessage<string> result = new InputMessage<string>(("init", "init", new Dictionary<string, double>()));
+            //var action = new Action<InputMessage<string>>(im => throw new Exception("abc"));
             var action = new Action<InputMessage<string>>(im => result = im);
             var parseSingleInputStringFormattedAsJSONToAction = new ParseSingleInputStringFormattedAsJSONToAction(action);
             var sendAsyncResults = parseSingleInputStringFormattedAsJSONToAction.InputBlock.SendAsync(inTestData);
             await sendAsyncResults;
+            // inform the head of the network that there is no more data
+            parseSingleInputStringFormattedAsJSONToAction.InputBlock.Complete();
+
+            // wait for the network to indicate completion
+            await parseSingleInputStringFormattedAsJSONToAction.CompletionTask;
+
+            Assert.NotNull(result);
+        }
+
+        [Theory]
+        [InlineData("[{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}},{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}},{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}},{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}},{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}},{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}},{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}]")]
+        public async void ParseSingleInputStringFormattedAsJSONCollectionToInputMessageTest(string inTestData)
+        {
+            // arrange
+            List<InputMessage<string>> result = new List<InputMessage<string>>();// { new InputMessage<string>(("init", "init", new Dictionary<string, double>())) };
+            //var action = new Action<InputMessage<string>>(im => throw new Exception("abc"));
+            var action = new Action<InputMessage<string>>(im => result.Add(im));
+            var parseSingleInputStringFormattedAsJSONCollectionToAction = new ParseSingleInputStringFormattedAsJSONCollectionToAction(action);
+
+            // act
+            var sendAsyncResults = parseSingleInputStringFormattedAsJSONCollectionToAction.InputBlock.SendAsync(inTestData);
+            await sendAsyncResults;
+            // inform the head of the network that there is no more data
+            parseSingleInputStringFormattedAsJSONCollectionToAction.InputBlock.Complete();
+
+            // wait for the network to indicate completion
+            await parseSingleInputStringFormattedAsJSONCollectionToAction.CompletionTask;
+            // Validate it is correct
             Assert.NotNull(result);
         }
         /*
-            // sendAsyncResults has returned
-            switch (sendAsyncResults.Status)
-            {
-                case TaskStatus.Canceled:
-                    break;
-                case TaskStatus.Faulted:
-                    break;
-                case TaskStatus.RanToCompletion:
-                    break;
-                default:
-                    throw new Exception("ToDo make this better exception handling");
-        }
+                    // sendAsyncResults has returned
+                    switch (sendAsyncResults.Status)
+                    {
+                        case TaskStatus.Canceled:
+                            break;
+                        case TaskStatus.Faulted:
+                            break;
+                        case TaskStatus.RanToCompletion:
+                            break;
+                        default:
+                            throw new Exception("ToDo make this better exception handling");
+                }
 
-        // take the data off the network
-        var testDataAsInputMessage = sendAsyncResults;
-        // Validate it is correct
-    }
-            // inform the head of the network that there is no more data
-            parseSingleInputStringFormattedAsJSONToInputMessage.InputBlock.Complete();
-
-            // wait for the network to indicate completion
-            await parseSingleInputStringFormattedAsJSONToInputMessage.CompletionTask;
-
-    }
-*/
+        */
         /*
                 [Theory]
                 [InlineData("{\"k1\",\"k2\",{\"c1\":10.0,\"c2\":20.0}}")]
