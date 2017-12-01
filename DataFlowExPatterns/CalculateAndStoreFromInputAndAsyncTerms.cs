@@ -26,19 +26,23 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     public partial class CalculateAndStoreFromInputAndAsyncTerms : Dataflow<InputMessage<string>> {
         // Head of this dataflow graph
         ITargetBlock<InputMessage<string>> _headBlock;
+
         // a thread-safe place to keep track of which individual key values of the set of key values of Term1 (sig.IndividualTerms) are FetchingIndividualTermKey
         ConcurrentObservableDictionary<string, Task> _isFetchingIndividualTermKey;
         // A thread-safe place to keep track of which complete sets of key values (sig.Longest) of Term1 are ReadyToCalculate
         ConcurrentObservableDictionary<string, byte> _sigIsReadyToCalculateAndStore;
-        // WebGet instance
+        CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
         IWebGet _webGet;
+        CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
 
 
         // Constructor
         public CalculateAndStoreFromInputAndAsyncTerms(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
             _isFetchingIndividualTermKey = calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualTermKey;
             _sigIsReadyToCalculateAndStore = calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyToCalculateAndStore;
+            _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
             _webGet = webGet;
+            _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
 
             // The terminal block performs both the Compute  and the Store operations
             var _terminator = new ActionBlock<InternalMessage<string>>(_input => {
@@ -50,7 +54,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 // Store the pr value
                 calculateAndStoreFromInputAndAsyncTermsObservableData.RecordR(_input.Value.k1,
                                   _input.Value.k2,
-                                  Convert.ToDecimal(r1)); }).ToDataflow();
+                                  Convert.ToDecimal(r1)); }).ToDataflow(calculateAndStoreFromInputAndAsyncTermsOptions);
 
             // this block accepts messages where isReadyToCalculate is false, and buffers them
             DynamicBuffers _dynamicBuffers = new DynamicBuffers(calculateAndStoreFromInputAndAsyncTermsObservableData, webGet, calculateAndStoreFromInputAndAsyncTermsOptions                                                               );
@@ -220,8 +224,6 @@ value;
                 IWebGet _webGet;
                 CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
 
-                // Handle events raised when the task(s) for each individual term used by this TransientBuffer change their state
-                PropertyChangedEventHandler onTaskStatusPropertyChanged;
 
                 public TransientBuffer(KeySignature<string> sig, CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
                     _isFetchingIndividualTermKey = calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualTermKey;
@@ -296,27 +298,29 @@ value;
             get => _value;
         }
     }
-    public class ParseInputStringFormattedAsJSONToInputMessage : Dataflow<string, InputMessage<string>> {
+    public class ParseSingleInputStringFormattedAsJSONToInputMessage : Dataflow<string, InputMessage<string>> {
         // Head and tail 
         TransformBlock<string, InputMessage<string>> _transformer;
-        public ParseInputStringFormattedAsJSONToInputMessage() : this(DataflowOptions.Default) { }
-        public ParseInputStringFormattedAsJSONToInputMessage(DataflowOptions dataflowOptions) : base(dataflowOptions) {
-            // create the individual results via a transform block
+        public ParseSingleInputStringFormattedAsJSONToInputMessage() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) { }
+        public ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+            // create the output via a TransformBlock
             _transformer = new TransformBlock<string, InputMessage<string>>(_input =>
             {
-                (string k1, string k2, Dictionary<string, double> terms1) _temp;
+                (string k1, string k2, IReadOnlyDictionary<string, double> terms1) _temp;
                 try
                 {
-                    _temp = JsonConvert.DeserializeObject<(string k1, string k2, Dictionary<string, double>  terms1)>(_input);
+                    _temp = JsonConvert.DeserializeObject<(string k1, string k2, Dictionary<string, double> terms1)>(_input);
                 }
                 catch
                 {
                     throw new ArgumentException($"{_input} does not match the needed input pattern");
                 }
-                return _temp;
+                return new InputMessage<string>(_temp);
+                //return _temp;
             }
-            )
-           .RegisterChild(_transformer);
+            );
+
+           RegisterChild(_transformer);
 
         }
 
@@ -325,28 +329,41 @@ value;
         public override ISourceBlock<InputMessage<string>> OutputBlock { get { return _transformer; } }
     }
 
-    public class ParseJSONStringCollectionToInputMessage : ParseInputStringFormattedAsJSONToInputMessage
+    public class ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection : Dataflow<string, InputMessage<string>>
     {
-        // Head
-        ITargetBlock<string> _headBlock;
+        // Head and tail 
+        TransformManyBlock<string, InputMessage<string>> _transformer;
+        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) { }
 
-        public ParseJSONStringCollectionToInputMessage(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-            var _accepter = new ParseInputStringFormattedAsJSONToInputMessage();
-            var _terminator = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData, webGet, calculateAndStoreFromInputAndAsyncTermsOptions);
-            _accepter.Name = "_accepter";
-            _terminator.Name = "_terminator";
+        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+            // create the output via a TransformManyBlock
+            //_transformer = new TransformManyBlock<string, InputMessage<string>>(_input =>
+            _transformer = new TransformManyBlock<string, InputMessage<string>>(_input =>
+            {
+                IEnumerable<InputMessage<string>> _coll;
+                try
+                {
+                    _coll = JsonConvert.DeserializeObject<IEnumerable<InputMessage<string>>>(_input);
+                }
+                catch
+                {
+                    throw new ArgumentException($"{_input} does not match the needed input pattern");
+                }
 
-            this.RegisterChild(_accepter);
-            this.RegisterChild(_terminator);
+                 return _coll;
+                // use the constructor that returns an IEnumerable><InputMessage<string>>
+                //return new InputMessage<string>(_coll);
+                //return _coll.ToList().ForEach(j=> new InputMessage<string>(j));
+            }
+            );
 
-            _accepter.LinkTo(_terminator);
+            RegisterChild(_transformer);
 
-            _terminator.RegisterDependency(_accepter);
-
-            this._headBlock = _accepter.InputBlock;
         }
 
-        public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
+        public override ITargetBlock<string> InputBlock { get { return _transformer; } }
+
+        public override ISourceBlock<InputMessage<string>> OutputBlock { get { return _transformer; } }
     }
 }
 /* This block of comments were an earlier version prior to using DataDispatcher

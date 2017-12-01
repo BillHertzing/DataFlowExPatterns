@@ -21,6 +21,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             _value = value;
         }
 
+
         public (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1) Value
         {
             get => _value; 
