@@ -12,7 +12,20 @@
   <ItemGroup>
     <PackageReference Include="Gridsum.DataflowEx" Version="2.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
+    <PackageReference Include="NLog.Config" Version="4.5.0-rc01" />
     <PackageReference Include="Swordfish.NET.CollectionsV3" Version="3.0.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="ATAP.Utilities.Logging">
+      <HintPath>..\..\ATAP.Utilities\ATAP.Utilities.Logging\bin\Debug\netstandard2.0\ATAP.Utilities.Logging.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="NLog.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

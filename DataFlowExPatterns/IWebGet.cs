@@ -7,6 +7,6 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
 {
     public interface IWebGet
     {
-        Task<double> GetHRAsync(string c);
+        Task<T> AsyncWebGet<T>(string reqID);
     }
 }

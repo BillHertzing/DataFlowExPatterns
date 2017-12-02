@@ -16,14 +16,14 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
     public class CalculateAndStoreFromInputAndAsyncTermsOptions : Gridsum.DataflowEx.DataflowOptions
     {
 
-        private static CalculateAndStoreFromInputAndAsyncTermsOptions s_defaultOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions()
+        private static CalculateAndStoreFromInputAndAsyncTermsOptions s_defaultOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions.Default)
         {
             AsyncFetchTimeout = DefaultAsyncFetchTimeout
         };
 
-        private static CalculateAndStoreFromInputAndAsyncTermsOptions s_verboseOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions()
+        private static CalculateAndStoreFromInputAndAsyncTermsOptions s_verboseOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions.Verbose)
         {
-            AsyncFetchTimeout = DefaultAsyncFetchTimeout,
+        AsyncFetchTimeout = DefaultAsyncFetchTimeout
         };
 
 

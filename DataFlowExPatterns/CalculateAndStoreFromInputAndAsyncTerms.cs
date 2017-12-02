@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using ATAP.Utilities.Logging.Logging;
 using Gridsum.DataflowEx;
 using Newtonsoft.Json;
 using Swordfish.NET.Collections;
@@ -23,18 +24,16 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     ///   When all of the messages buffered in a TransientBuffer are released to the _terminator, the TransientBuffer is disposed of.
     ///   ToDo: a maxtimeToWait for the async fetch task to complete, after the _acceptor receives a Complete signal, before declaring a transient block faulted. 
     /// </summary>
-    public partial class CalculateAndStoreFromInputAndAsyncTerms : Dataflow<InputMessage<string>> {
+    public partial class CalculateAndStoreFromInputAndAsyncTerms : Dataflow<IInputMessage<string, double>> {
+        CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
+        CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
         // Head of this dataflow graph
-        ITargetBlock<InputMessage<string>> _headBlock;
-
+        ITargetBlock<IInputMessage<string, double>> _headBlock;
         // a thread-safe place to keep track of which individual key values of the set of key values of Term1 (sig.IndividualTerms) are FetchingIndividualTermKey
         ConcurrentObservableDictionary<string, Task> _isFetchingIndividualTermKey;
         // A thread-safe place to keep track of which complete sets of key values (sig.Longest) of Term1 are ReadyToCalculate
         ConcurrentObservableDictionary<string, byte> _sigIsReadyToCalculateAndStore;
-        CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
         IWebGet _webGet;
-        CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
-
 
         // Constructor
         public CalculateAndStoreFromInputAndAsyncTerms(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
@@ -53,11 +52,13 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                                               calculateAndStoreFromInputAndAsyncTermsObservableData.TermCOD1[kvp.Key]; });
                 // Store the pr value
                 calculateAndStoreFromInputAndAsyncTermsObservableData.RecordR(_input.Value.k1,
-                                  _input.Value.k2,
-                                  Convert.ToDecimal(r1)); }).ToDataflow(calculateAndStoreFromInputAndAsyncTermsOptions);
+                                                                              _input.Value.k2,
+                                                                              Convert.ToDecimal(r1)); }).ToDataflow(calculateAndStoreFromInputAndAsyncTermsOptions);
 
             // this block accepts messages where isReadyToCalculate is false, and buffers them
-            DynamicBuffers _dynamicBuffers = new DynamicBuffers(calculateAndStoreFromInputAndAsyncTermsObservableData, webGet, calculateAndStoreFromInputAndAsyncTermsOptions                                                               );
+            DynamicBuffers _dynamicBuffers = new DynamicBuffers(calculateAndStoreFromInputAndAsyncTermsObservableData,
+                                                                webGet,
+                                                                calculateAndStoreFromInputAndAsyncTermsOptions);
 
             // This is the method called, under a number of different conditions, to determine if the Async tasks that fetch a particular t1 of Term1 has completed
             void CheckAsyncTasks()
@@ -98,9 +99,9 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             // ToDo also check on the async tasks when a timer expires
             // Create a timer, attach its callback to CheckAsyncTasks, setup its expiration, repeat indefinitely
 
-            // foreach InputMessage<string>, create an internal message that adds the terms1 signature and the bool used by the routing predicate
+            // foreach IInputMessage<TKeyTerm1,TValueTerm1>, create an internal message that adds the terms1 signature and the bool used by the routing predicate
             // the output is k1, k2, c1, bool, and the output is routed on the bool value
-            var _accepter = new TransformBlock<InputMessage<string>, InternalMessage<string>>(_input => {
+            var _accepter = new TransformBlock<IInputMessage<string, double>, InternalMessage<string>>(_input => {
                 // ToDo also check on the async tasks check when an upstream completion occurs
                 // ToDo need a default value for how long to wait for an async fetch to complete after an upstream completion occurs
                 // ToDo need a constructor and a property that will let a caller change the default value for how long to wait for an async fetch to complete after an upstream completion occurs
@@ -143,20 +144,16 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             this._headBlock = _accepter.InputBlock;
         // ToDo: start PreparingToCalculate to pre-populate the initial list of C key signatures
         }
-        public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualTermKey
-        {
-            get => _isFetchingIndividualTermKey; set => _isFetchingIndividualTermKey =
-value;
-        }
 
-        public ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore
-        {
-            get => _sigIsReadyToCalculateAndStore; set => _sigIsReadyToCalculateAndStore =
-value;
-        }
+        public override ITargetBlock<IInputMessage<string, double>> InputBlock { get { return this._headBlock; } }
+
+        public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualTermKey { get => _isFetchingIndividualTermKey; set => _isFetchingIndividualTermKey =
+            value; }
+
+        public ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore { get => _sigIsReadyToCalculateAndStore; set => _sigIsReadyToCalculateAndStore =
+            value; }
 
         public IWebGet WebGet { get => _webGet; set => _webGet = value; }
-        public override ITargetBlock<InputMessage<string>> InputBlock { get { return this._headBlock; } }
 
         // The class used as the message between the _acceptor, The _DynamicBuffers, and the _terminator
         public class InternalMessage<TKeyTerm1> {
@@ -172,13 +169,13 @@ value;
 
         // ToDo: replace hard coded string with the type passed when the parent dataflow is declared
         public class DynamicBuffers : DataDispatcher<InternalMessage<string>, KeySignature<string>> {
+            CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
+            CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
             // a thread-safe place to keep track of which individual key values of the set of key values of Term1 (sig.IndividualTerms) are FetchingIndividualTermKey
             ConcurrentObservableDictionary<string, Task> _isFetchingIndividualTermKey;
             // A thread-safe place to keep track of which complete sets of key values (sig.Longest) of Term1 are ReadyToCalculate
             ConcurrentObservableDictionary<string, byte> _sigIsReadyToCalculateAndStore;
-            CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
             IWebGet _webGet;
-            CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
 
             public DynamicBuffers(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(@out => @out.Value.sig) {
                 _isFetchingIndividualTermKey = calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualTermKey;
@@ -197,7 +194,10 @@ value;
                 // dynamically create a subflow buffer. The dispatchKey is based upon the value of sig
                 // pass sig to the TransientBuffer constructor so the TransientBuffer can create the async tasks to fetch each individual term of the sig
                 // pas the constructor a handle to the ConcurrentObservableDictionary<string, Task>
-                var _buffer = new TransientBuffer(sig, _calculateAndStoreFromInputAndAsyncTermsObservableData, _webGet, _calculateAndStoreFromInputAndAsyncTermsOptions);
+                var _buffer = new TransientBuffer(sig,
+                                                  _calculateAndStoreFromInputAndAsyncTermsObservableData,
+                                                  _webGet,
+                                                  _calculateAndStoreFromInputAndAsyncTermsOptions);
                 // Store the sig._individualTerms collection and this buffer into SigIsWaitingForCompletion COD
                 // SigIsWaitingForCompletion.TryAdd
                 // no need to call RegisterChild(_buffer) here as DataDispatcher will call automatically
@@ -218,12 +218,11 @@ value;
             public class TransientBuffer : Dataflow<InternalMessage<string>, InternalMessage<string>> {
                 // The TPL block that buffers the data.
                 BufferBlock<InternalMessage<string>> _buffer;
+                CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
+                CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
                 ConcurrentObservableDictionary<string, Task> _isFetchingIndividualTermKey;
                 ConcurrentObservableDictionary<string, byte> _sigIsReadyToCalculateAndStore;
-                CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
                 IWebGet _webGet;
-                CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
-
 
                 public TransientBuffer(KeySignature<string> sig, CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
                     _isFetchingIndividualTermKey = calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualTermKey;
@@ -241,7 +240,7 @@ value;
                         .ForEach(term => {
                             // call the async function that fetches the information for each individual term in the sig
                             // record the individual term and the task in the COD isFetchingIndividualTermKey passed as a parameter during the ctor
- IsFetchingIndividualTermKey[term] = webGet.GetHRAsync(term);
+ IsFetchingIndividualTermKey[term] = webGet.AsyncWebGet<double>(term);
                             // attach the event handler onTaskStatusPropertyChanged to the TaskStatus property of every task being fetched, whether it was created here or it already existed in the COD
                             //  isFetchingIndividualTermKey[term].
  });
@@ -281,89 +280,102 @@ value;
     }
 
     //JsonConvert.DeserializeObject<(string k1, string k2, string c1, double d)[]>
-    public class InputStringAsJSON<TKeyTerm1>
-    {
+    public class InputStringAsJSON<TKeyTerm1> {
         /// <summary>
         /// The value backing field
         /// </summary>
         (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1) _value;
 
-        public InputStringAsJSON((string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1) value)
-        {
+        public InputStringAsJSON((string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1) value) {
             _value = value;
         }
 
-        public (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1) Value
-        {
-            get => _value;
-        }
+        public (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1) Value { get => _value; }
     }
-    public class ParseSingleInputStringFormattedAsJSONToInputMessage : Dataflow<string, InputMessage<string>> {
+
+    public class ParseSingleInputStringFormattedAsJSONToInputMessage : Dataflow<string, IInputMessage<string, double>> {
         // Head and tail 
-        TransformBlock<string, InputMessage<string>> _transformer;
-        public ParseSingleInputStringFormattedAsJSONToInputMessage() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) { }
+        TransformBlock<string, IInputMessage<string, double>> _transformer;
+
+        public ParseSingleInputStringFormattedAsJSONToInputMessage() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
+        }
+
         public ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+            Log.Trace("Constructor starting");
             // create the output via a TransformBlock
-            _transformer = new TransformBlock<string, InputMessage<string>>(_input =>
-            {
-                (string k1, string k2, IReadOnlyDictionary<string, double> terms1) _temp;
+            _transformer = new TransformBlock<string, IInputMessage<string, double>>(_input => { (string k1, string k2, IReadOnlyDictionary<string, double> terms1) _temp;
                 try
                 {
+                    Log.Trace("Deserialize Starting");
                     _temp = JsonConvert.DeserializeObject<(string k1, string k2, Dictionary<string, double> terms1)>(_input);
+                    Log.Trace("Deserialize Finished");
                 }
                 catch
                 {
-                    throw new ArgumentException($"{_input} does not match the needed input pattern");
+                    ArgumentException e = new ArgumentException($"{_input} does not match the needed input pattern");
+                    Log.WarnException("Exception", e, "unused");
+                    throw e;
                 }
-                return new InputMessage<string>(_temp);
-                //return _temp;
-            }
-            );
-
-           RegisterChild(_transformer);
-
-        }
-
-        public override ITargetBlock<string> InputBlock { get { return _transformer; } }
-
-        public override ISourceBlock<InputMessage<string>> OutputBlock { get { return _transformer; } }
-    }
-
-    public class ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection : Dataflow<string, InputMessage<string>>
-    {
-        // Head and tail 
-        TransformManyBlock<string, InputMessage<string>> _transformer;
-        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) { }
-
-        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-            // create the output via a TransformManyBlock
-            //_transformer = new TransformManyBlock<string, InputMessage<string>>(_input =>
-            _transformer = new TransformManyBlock<string, InputMessage<string>>(_input =>
-            {
-                IEnumerable<InputMessage<string>> _coll;
-                try
-                {
-                    _coll = JsonConvert.DeserializeObject<IEnumerable<InputMessage<string>>>(_input);
-                }
-                catch
-                {
-                    throw new ArgumentException($"{_input} does not match the needed input pattern");
-                }
-
-                 return _coll;
-                // use the constructor that returns an IEnumerable><InputMessage<string>>
-                //return new InputMessage<string>(_coll);
-                //return _coll.ToList().ForEach(j=> new InputMessage<string>(j));
-            }
-            );
+                return new InputMessage<string, double>(_temp); });
 
             RegisterChild(_transformer);
+            Log.Trace("Constructor Finished");
+        }
+
+        public override ITargetBlock<string> InputBlock { get { return _transformer; } }
+
+        public override ISourceBlock<IInputMessage<string, double>> OutputBlock { get { return _transformer; } }
+
+        #region Configure this class to use ATAP.Utilities.Logging
+        internal static ILog Log { get; set; }
+
+        static ParseSingleInputStringFormattedAsJSONToInputMessage() {
+            Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONToInputMessage>();
+        }
+        #endregion Configure this class to use ATAP.Utilities.Logging
+    }
+
+    public class ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection : Dataflow<string, InputMessage<string, double>> {
+        // Head and tail 
+        TransformManyBlock<string, InputMessage<string, double>> _transformer;
+
+        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
+        }
+
+        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+            Log.Trace("Constructor starting");
+            // create the output via a TransformManyBlock
+            _transformer = new TransformManyBlock<string, InputMessage<string, double>>(_input => { IEnumerable<InputMessage<string, double>> _coll;
+                try
+                {
+                    Log.Trace("Deserialize Starting");
+                    _coll = JsonConvert.DeserializeObject<IEnumerable<InputMessage<string, double>>>(_input);
+                    Log.Trace("Deserialize Finished");
+                }
+                catch
+                {
+                    ArgumentException e = new ArgumentException($"{_input} does not match the needed input pattern");
+                    Log.WarnException("Exception", e, "unused");
+                    throw e;
+                }
+                return _coll;
+ });
+            RegisterChild(_transformer);
+            Log.Trace("Constructor Finished");
 
         }
 
         public override ITargetBlock<string> InputBlock { get { return _transformer; } }
 
-        public override ISourceBlock<InputMessage<string>> OutputBlock { get { return _transformer; } }
+        public override ISourceBlock<InputMessage<string, double>> OutputBlock { get { return _transformer; } }
+
+        #region Configure this class to use ATAP.Utilities.Logging
+        internal static ILog Log { get; set; }
+
+        static ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() {
+            Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection>();
+        }
+        #endregion Configure this class to use ATAP.Utilities.Logging
     }
 }
 /* This block of comments were an earlier version prior to using DataDispatcher

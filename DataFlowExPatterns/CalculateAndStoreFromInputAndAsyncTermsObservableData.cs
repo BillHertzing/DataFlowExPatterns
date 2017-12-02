@@ -24,11 +24,11 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         PropertyChangedEventHandler onTermCOD1PropertyChanged;
 
         public CalculateAndStoreFromInputAndAsyncTermsObservableData(
-                        NotifyCollectionChangedEventHandler onResultsCODCollectionChanged,
-            NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged,
-            NotifyCollectionChangedEventHandler onTermCOD1CollectionChanged,
-            NotifyCollectionChangedEventHandler onSigIsReadyToCalculateAndStoreCODCollectionChanged,
-            NotifyCollectionChangedEventHandler onIsFetchingIndividualTermKeyCODCollectionChanged
+                NotifyCollectionChangedEventHandler onResultsCODCollectionChanged,
+                NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged,
+                NotifyCollectionChangedEventHandler onTermCOD1CollectionChanged,
+                NotifyCollectionChangedEventHandler onSigIsReadyToCalculateAndStoreCODCollectionChanged,
+                NotifyCollectionChangedEventHandler onIsFetchingIndividualTermKeyCODCollectionChanged
             ) : this(
             new ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, decimal>>(),
             onResultsCODCollectionChanged,
@@ -98,7 +98,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         {
             _resultsCOD = resultsCOD;
             this.onResultsCODCollectionChanged = onResultsCODCollectionChanged;
-            if (this.onResultsCODCollectionChanged != null) _resultsCOD.CollectionChanged += this.onResultsNestedCODCollectionChanged;
+            if (this.onResultsCODCollectionChanged != null) _resultsCOD.CollectionChanged += this.onResultsCODCollectionChanged;
             this.onResultsCODPropertyChanged = onResultsCODPropertyChanged;
             if(this.onResultsCODPropertyChanged != null) _resultsCOD.PropertyChanged += this.onResultsCODPropertyChanged;
             this.onResultsNestedCODCollectionChanged = onResultsNestedCODCollectionChanged;
