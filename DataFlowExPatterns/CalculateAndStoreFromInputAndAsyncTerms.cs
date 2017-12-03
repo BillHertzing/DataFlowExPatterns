@@ -181,22 +181,102 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             /// <param name="sig">The sig.</param>
             /// <returns>Dataflow&lt;InternalMessage&lt;System.String&gt;&gt;.</returns>
             protected override Dataflow<InternalMessage<string>> CreateChildFlow(KeySignature<string> sig) {
-                // dynamically create a subflow buffer. The dispatchKey is based upon the value of sig
+                // dynamically create a TransientBuffer buffer. The dispatchKey is based upon the value of sig
                 // pass sig to the TransientBuffer constructor so the TransientBuffer can create the async tasks to fetch each individual term of the sig
-                // pas the constructor a handle to the ConcurrentObservableDictionary<string, Task>
+                // pass the constructor a handle to the ConcurrentObservableDictionary<string, Task>
                 Log.Trace("CreateChildFlow is creating _buffer");
 
                 var _buffer = new TransientBuffer(sig,
                                                   _calculateAndStoreFromInputAndAsyncTermsObservableData,
                                                   _webGet,
                                                   _calculateAndStoreFromInputAndAsyncTermsOptions);
-                // Store the sig._individualTerms collection and this buffer into SigIsWaitingForCompletion COD
-                // SigIsWaitingForCompletion.TryAdd
+                // Store the sig._individualTerms collection and this buffer into sigIsWaitingForCompletion COD
+                // _calculateAndStoreFromInputAndAsyncTermsObservableData.sigIsWaitingForCompletion.TryAdd
                 // no need to call RegisterChild(_buffer) here as DataDispatcher will call automatically
                 Log.Trace("CreateChildFlow has created _buffer and is returning");
                 // return the TransientBuffer
                 return _buffer;
             }
+
+            public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualTermKey { get => _isFetchingIndividualTermKey; set => _isFetchingIndividualTermKey =
+                value; }
+
+            public ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore { get => _sigIsReadyToCalculateAndStore; set => _sigIsReadyToCalculateAndStore =
+                value; }
+
+            public IWebGet WebGet { get => _webGet; set => _webGet = value; }
+
+            /// <summary>
+            /// Transient Buffer node for a single sig
+            /// </summary>
+            public class TransientBuffer : Dataflow<InternalMessage<string>, InternalMessage<string>> {
+                // The TPL block that buffers the data.
+                BufferBlock<InternalMessage<string>> _buffer;
+                CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
+                CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
+                ConcurrentObservableDictionary<string, Task> _isFetchingIndividualTermKey;
+                ConcurrentObservableDictionary<string, byte> _sigIsReadyToCalculateAndStore;
+                IWebGet _webGet;
+
+                public TransientBuffer(KeySignature<string> sig, CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+                    Log.Trace("Constructor Starting");
+                    Log.Debug("sig: {sig.ToString()}");
+                    _isFetchingIndividualTermKey = calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualTermKey;
+                    _sigIsReadyToCalculateAndStore = calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyToCalculateAndStore;
+                    _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
+                    _webGet = webGet;
+                    _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
+                    Log.Trace("Creating _buffer");
+
+                    _buffer = new BufferBlock<InternalMessage<string>>();
+
+                    Log.Trace("Registering _buffer");
+                    RegisterChild(_buffer);
+                    // critical section
+                    // iterate each individual term of the sig, and get those that are not already present in the COD IsFetchingIndividualTermKey
+                    sig.IndividualTerms.Where(term => !IsFetchingIndividualTermKey.ContainsKey(term))
+                        .ToList()
+                        .ForEach(term =>
+                        {
+                            // call the async function that fetches the information for each individual term in the sig
+                            // record the individual term and the task in the COD isFetchingIndividualTermKey passed as a parameter during the ctor
+                            Log.Trace("Fetching AsyncWebGet");
+                            Log.Debug("Fetching AsyncWebGet for {term} and storing away task",term);
+                            IsFetchingIndividualTermKey[term] = webGet.AsyncWebGet<double>(term);
+                        });
+                    Log.Trace("Constructor Finished");
+                }
+
+                protected override void CleanUp(Exception e) {
+                    Log.Trace("Cleanup before base");
+                    base.CleanUp(e);
+                    Log.Trace("Cleanup after base");
+                // ToDo Cleanup any messages on the transient blocks
+                // remove this TransientBlock's event Handlers from all Tasks representing term fetches, for the individual terms for this TBs sig
+                }
+
+                public override ITargetBlock<InternalMessage<string>> InputBlock { get { return this._buffer; } }
+
+                public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualTermKey { get => _isFetchingIndividualTermKey; set => _isFetchingIndividualTermKey =
+                    value; }
+
+                public override ISourceBlock<InternalMessage<string>> OutputBlock { get { return this._buffer; } }
+
+                public ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore { get => _sigIsReadyToCalculateAndStore; set => _sigIsReadyToCalculateAndStore =
+                    value; }
+
+                public IWebGet WebGet { get => _webGet; set => _webGet = value; }
+                #region Configure this class to use ATAP.Utilities.Logging
+                // Internal class logger for this class
+                private static ILog log;
+                static TransientBuffer()
+                {
+                    log = LogProvider.For<TransientBuffer>();
+                }
+                internal static ILog Log { get => log; set => log = value; }
+                #endregion Configure this class to use ATAP.Utilities.Logging
+            }
+
             #region critical section that periodicly checks on the status of the outstanding tasks that are fetching terms
 
             // This is the method called, under a number of different conditions, to determine if the Async tasks that fetch a particular Term1 has completed
@@ -205,13 +285,13 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 Log.Trace("Starting the CheckAsyncTasks method");
 
                 // Get the collection of the output predicates for TransientBuffer subflows in the DynamicBuffers dataflow that are not linked to _terminator
-               // ConcurrentDictionary<string, DynamicBuffers.TransientBuffer> _waitingTBSigs = new ConcurrentDictionary<string, DynamicBuffers.TransientBuffer>();
+                // ConcurrentDictionary<string, DynamicBuffers.TransientBuffer> _waitingTBSigs = new ConcurrentDictionary<string, DynamicBuffers.TransientBuffer>();
                 //var b = _dynamicBuffers.Blocks;
                 //var c = _dynamicBuffers.Children;
                 // This is where the issues/question has been raised on the dataFlowEx project
                 // _dynamicBuffers.Children.Where<IDataflowDependency>(child=>child.Blocks.Where<IDataflowBlock>(block=>block.GetBufferCount().Item2 > 0));
                 // get the collection of keys corresponding to the collection of term1 async tasks that have not completed.
-               // ConcurrentDictionary<string, byte> _waiting1TermFetchSigs = new ConcurrentDictionary<string, byte>();
+                // ConcurrentDictionary<string, byte> _waiting1TermFetchSigs = new ConcurrentDictionary<string, byte>();
                 //_calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualTermKey
                 //    .Where(kvp => kvp.Value.IsCompleted == false)
                 //    .ToList()
@@ -263,84 +343,6 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             }
             #endregion critical section that periodicly checks on the status of the outstanding tasks that are fetching terms
 
-            public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualTermKey { get => _isFetchingIndividualTermKey; set => _isFetchingIndividualTermKey =
-                value; }
-
-            public ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore { get => _sigIsReadyToCalculateAndStore; set => _sigIsReadyToCalculateAndStore =
-                value; }
-
-            public IWebGet WebGet { get => _webGet; set => _webGet = value; }
-
-            /// <summary>
-            /// Transient Buffer node for a single sig
-            /// </summary>
-            public class TransientBuffer : Dataflow<InternalMessage<string>, InternalMessage<string>> {
-                // The TPL block that buffers the data.
-                BufferBlock<InternalMessage<string>> _buffer;
-                CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
-                CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
-                ConcurrentObservableDictionary<string, Task> _isFetchingIndividualTermKey;
-                ConcurrentObservableDictionary<string, byte> _sigIsReadyToCalculateAndStore;
-                IWebGet _webGet;
-
-                public TransientBuffer(KeySignature<string> sig, CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-                    Log.Trace("Constructor Starting");
-                    Log.Debug("sig: {sig.ToString()}");
-                    _isFetchingIndividualTermKey = calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualTermKey;
-                    _sigIsReadyToCalculateAndStore = calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyToCalculateAndStore;
-                    _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
-                    _webGet = webGet;
-                    _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
-                    Log.Trace("Creating _buffer");
-
-                    _buffer = new BufferBlock<InternalMessage<string>>();
-
-                    Log.Trace("Registering _buffer");
-                    RegisterChild(_buffer);
-                    // critical section
-                    // iterate each individual term of the sig, and if it not already present in _isFetchingIndividualTermKeyCOD
-                    sig.IndividualTerms.Where(term => !IsFetchingIndividualTermKey.ContainsKey(term))
-                        .ToList()
-                        .ForEach(term =>
-                        {
-                            // call the async function that fetches the information for each individual term in the sig
-                            // record the individual term and the task in the COD isFetchingIndividualTermKey passed as a parameter during the ctor
-                            Log.Trace("Fetching AsyncWebGet");
-                            Log.Debug("Fetching AsyncWebGet for {term} and storing away task",term);
-                            IsFetchingIndividualTermKey[term] = webGet.AsyncWebGet<double>(term);
-                        });
-                    Log.Trace("Constructor Finished");
-                }
-
-                protected override void CleanUp(Exception e) {
-                    Log.Trace("Cleanup before base");
-                    base.CleanUp(e);
-                    Log.Trace("Cleanup after base");
-                // ToDo Cleanup any messages on the transient blocks
-                // remove this TransientBlock's event Handlers from all Tasks representing term fetches, for the individual terms for this TBs sig
-                }
-
-                public override ITargetBlock<InternalMessage<string>> InputBlock { get { return this._buffer; } }
-
-                public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualTermKey { get => _isFetchingIndividualTermKey; set => _isFetchingIndividualTermKey =
-                    value; }
-
-                public override ISourceBlock<InternalMessage<string>> OutputBlock { get { return this._buffer; } }
-
-                public ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore { get => _sigIsReadyToCalculateAndStore; set => _sigIsReadyToCalculateAndStore =
-                    value; }
-
-                public IWebGet WebGet { get => _webGet; set => _webGet = value; }
-                #region Configure this class to use ATAP.Utilities.Logging
-                // Internal class logger for this class
-                private static ILog log;
-                static TransientBuffer()
-                {
-                    log = LogProvider.For<TransientBuffer>();
-                }
-                internal static ILog Log { get => log; set => log = value; }
-                #endregion Configure this class to use ATAP.Utilities.Logging
-            }
 
             protected override void CleanUp(Exception e)
             {

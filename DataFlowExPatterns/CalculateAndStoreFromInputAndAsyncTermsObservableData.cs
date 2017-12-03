@@ -203,7 +203,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
 
         static CalculateAndStoreFromInputAndAsyncTermsObservableData()
         {
-            Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONToInputMessage>();
+            Log = LogProvider.For<CalculateAndStoreFromInputAndAsyncTermsObservableData>();
         }
         #endregion Configure this class to use ATAP.Utilities.Logging
         #region IDisposable Support
