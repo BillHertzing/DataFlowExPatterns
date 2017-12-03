@@ -3,6 +3,7 @@ using Swordfish.NET.Collections;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using ATAP.Utilities.Logging.Logging;
 
 namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
 {
@@ -18,22 +19,25 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
 
         private static CalculateAndStoreFromInputAndAsyncTermsOptions s_defaultOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions.Default)
         {
-            AsyncFetchTimeout = DefaultAsyncFetchTimeout
+            _asyncFetchTimeout = DefaultAsyncFetchTimeout,
+            _asyncFetchTimeInterval = DefaultAsyncFetchTimeInterval
         };
 
         private static CalculateAndStoreFromInputAndAsyncTermsOptions s_verboseOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions.Verbose)
         {
-        AsyncFetchTimeout = DefaultAsyncFetchTimeout
+            _asyncFetchTimeout = DefaultAsyncFetchTimeout,
+            _asyncFetchTimeInterval = DefaultAsyncFetchTimeInterval
         };
 
 
         private TimeSpan _asyncFetchTimeout;
+        private TimeSpan _asyncFetchTimeInterval;
 
 
-        public CalculateAndStoreFromInputAndAsyncTermsOptions() : this( DefaultAsyncFetchTimeout, DataflowOptions.Default) { }
-        public CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions dataFlowOptions) : this(DefaultAsyncFetchTimeout, dataFlowOptions) { }
-        public CalculateAndStoreFromInputAndAsyncTermsOptions(TimeSpan asyncFetchTimeout) : this(asyncFetchTimeout, DataflowOptions.Default) { }
-        public CalculateAndStoreFromInputAndAsyncTermsOptions(TimeSpan asyncFetchTimeout, DataflowOptions dataFlowOptions) : base()
+        public CalculateAndStoreFromInputAndAsyncTermsOptions() : this(DefaultAsyncFetchTimeout, DefaultAsyncFetchTimeInterval, DataflowOptions.Default) { }
+        public CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions dataFlowOptions) : this(DefaultAsyncFetchTimeout, DefaultAsyncFetchTimeInterval, dataFlowOptions) { }
+        public CalculateAndStoreFromInputAndAsyncTermsOptions(TimeSpan asyncFetchTimeout, TimeSpan asyncFetchTimeInterval) : this(asyncFetchTimeout, asyncFetchTimeInterval, DataflowOptions.Default) { }
+        public CalculateAndStoreFromInputAndAsyncTermsOptions(TimeSpan asyncFetchTimeout, TimeSpan asyncFetchTimeInterval, DataflowOptions dataFlowOptions) : base()
         {
 
             _asyncFetchTimeout = asyncFetchTimeout;
@@ -61,6 +65,21 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
         }
 
         /// <summary>
+        /// The interval of the async monitor loop
+        /// </summary>
+        public TimeSpan AsyncFetchTimeInterval
+        {
+            get
+            {
+                return _asyncFetchTimeInterval == TimeSpan.Zero ? DefaultAsyncFetchTimeInterval : _asyncFetchTimeInterval;
+            }
+            set
+            {
+                this._asyncFetchTimeInterval  = value;
+            }
+        }
+
+        /// <summary>
         /// A predefined default setting for DataflowOptions
         /// </summary>
         public static CalculateAndStoreFromInputAndAsyncTermsOptions Default
@@ -82,7 +101,13 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
             }
         }
 
-
+        public static TimeSpan DefaultAsyncFetchTimeInterval
+        {
+            get
+            {
+                return TimeSpan.FromSeconds(1);
+            }
+        }
 
         /// <summary>
         /// A predefined verbose setting for DataflowOptions
@@ -94,6 +119,14 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
                 return s_verboseOptions;
             }
         }
+        #region Configure this class to use ATAP.Utilities.Logging
+        internal static ILog Log { get; set; }
+
+        static CalculateAndStoreFromInputAndAsyncTermsOptions()
+        {
+            Log = LogProvider.For<CalculateAndStoreFromInputAndAsyncTermsOptions>();
+        }
+        #endregion Configure this class to use ATAP.Utilities.Logging
     }
 }
 

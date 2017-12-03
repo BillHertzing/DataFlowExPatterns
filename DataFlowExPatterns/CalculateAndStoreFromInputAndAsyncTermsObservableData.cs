@@ -3,9 +3,12 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using Swordfish.NET.Collections;
+using ATAP.Utilities.Logging.Logging;
+
 
 namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     public class CalculateAndStoreFromInputAndAsyncTermsObservableData : IDisposable {
+
         // a thread-safe place to keep track of which individual key values of the set of key values of Term1 (sig.IndividualTerms) are FetchingIndividualTermKey
         ConcurrentObservableDictionary<string, Task> _isFetchingIndividualTermKeyCOD;
         ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, decimal>> _resultsCOD;
@@ -23,7 +26,9 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         NotifyCollectionChangedEventHandler onTermCOD1CollectionChanged;
         PropertyChangedEventHandler onTermCOD1PropertyChanged;
 
-        public CalculateAndStoreFromInputAndAsyncTermsObservableData(
+
+
+    public CalculateAndStoreFromInputAndAsyncTermsObservableData(
                 NotifyCollectionChangedEventHandler onResultsCODCollectionChanged,
                 NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged,
                 NotifyCollectionChangedEventHandler onTermCOD1CollectionChanged,
@@ -96,6 +101,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             PropertyChangedEventHandler onIsFetchingIndividualTermKeyCODPropertyChanged 
 )
         {
+            Log.Trace("Constructor starting");
             _resultsCOD = resultsCOD;
             this.onResultsCODCollectionChanged = onResultsCODCollectionChanged;
             if (this.onResultsCODCollectionChanged != null) _resultsCOD.CollectionChanged += this.onResultsCODCollectionChanged;
@@ -120,6 +126,8 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             if (this.onIsFetchingIndividualTermKeyCODCollectionChanged != null) _isFetchingIndividualTermKeyCOD.CollectionChanged += this.onIsFetchingIndividualTermKeyCODCollectionChanged;
             this.onIsFetchingIndividualTermKeyCODPropertyChanged = onIsFetchingIndividualTermKeyCODPropertyChanged;
             if (this.onIsFetchingIndividualTermKeyCODPropertyChanged != null) _isFetchingIndividualTermKeyCOD.PropertyChanged += this.onIsFetchingIndividualTermKeyCODPropertyChanged;
+
+            Log.Trace("Constructor Finished");
         }
         public void RecordR(string k1, string k2, decimal pr) {
             if(ResultsCOD.ContainsKey(k1)) {
@@ -190,6 +198,14 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         public ConcurrentObservableDictionary<string, double> TermCOD1 { get => _termCOD1; set => _termCOD1 =
             value; }
 
+        #region Configure this class to use ATAP.Utilities.Logging
+        internal static ILog Log { get; set; }
+
+        static CalculateAndStoreFromInputAndAsyncTermsObservableData()
+        {
+            Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONToInputMessage>();
+        }
+        #endregion Configure this class to use ATAP.Utilities.Logging
         #region IDisposable Support
         public void TearDown() {
             ResultsCOD.CollectionChanged -= onResultsCODCollectionChanged;
