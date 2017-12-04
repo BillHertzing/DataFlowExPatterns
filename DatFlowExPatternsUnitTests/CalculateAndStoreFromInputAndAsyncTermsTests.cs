@@ -3,37 +3,38 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms;
+using Common.Logging;
 using Gridsum.DataflowEx;
 using Moq;
 using Newtonsoft.Json;
 using Xunit;
 using Xunit.Abstractions;
-using Common.Logging;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 
 namespace DatFlowExPatternsUnitTests {
-    public static class Utils { 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public static ILog GetNamespaceLogger()
-    {
-        var frame = new StackFrame(1);
-        var callingMethod = frame.GetMethod();
-        return LogManager.GetLogger(callingMethod.DeclaringType.Namespace);
+    public static class Utils {
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static ILog GetNamespaceLogger() {
+            var frame = new StackFrame(1);
+            var callingMethod = frame.GetMethod();
+            return LogManager.GetLogger(callingMethod.DeclaringType.Namespace);
+        }
     }
-}
+
     public class Fixture : IDisposable {
+        #region Logger
+        public ILog m_logger = Utils.GetNamespaceLogger();
+        #endregion
         #region MOQs
         // a MOQ for the async web calls used for Term1
         public IWebGet mockTerm1;
         #endregion
-        #region Logger
-        public ILog m_logger = Utils.GetNamespaceLogger();
-        #endregion
+
         public void Dispose() {
         }
 
@@ -66,9 +67,10 @@ namespace DatFlowExPatternsUnitTests {
         /// The is the dictionary that holds the information written by the event handlers that are reporting changes to the ResultsCOD
         /// During testing, this "stands in" for a GUI visual control that would normally receive these events
         /// </summary>
-        public ConcurrentDictionary<string, string> IsFetchingIndividualTermKeyCODEvents = new ConcurrentDictionary<string, string>();
+        public ConcurrentDictionary<string, string> isFetchingIndividualElementsOfTerm1CODEvents = new ConcurrentDictionary<string, string>();
+        public ConcurrentDictionary<string, string> isFetchingSigOfTerm1CODEvents = new ConcurrentDictionary<string, string>();
         public ConcurrentDictionary<string, string> resultsCODEvents = new ConcurrentDictionary<string, string>();
-        public ConcurrentDictionary<string, string> SigIsReadyToCalculateAndStoreCODEvents = new ConcurrentDictionary<string, string>();
+        public ConcurrentDictionary<string, string> sigIsReadyTerm1CODEvents = new ConcurrentDictionary<string, string>();
         public ConcurrentDictionary<string, string> term1CODEvents = new ConcurrentDictionary<string, string>();
         #endregion
         #region Event handlers for the CODs found in the CalculateAndStoreFromInputAndAsyncTermsObservableData class
@@ -102,42 +104,65 @@ namespace DatFlowExPatternsUnitTests {
             return s;
         }
 
-        public void onIsFetchingIndividualTermKeyCODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            IsFetchingIndividualTermKeyCODEvents[Message("IsFetchingIndividualTermKey",
-                                                         e)] = DateTime.Now.ToLongTimeString();
+        #region CollectionChanged Event Handlers
+        public void onTerm1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            term1CODEvents[Message("Term1", e)] = DateTime.Now.ToLongTimeString();
         }
 
-        public void onNestedPropertyChanged(object sender, PropertyChangedEventArgs e) {
-            resultsCODEvents[$"Ticks: {DateTime.Now.Ticks} Event: NestedPropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+        public void onIsFetchingIndividualElementsOfTerm1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            isFetchingIndividualElementsOfTerm1CODEvents[Message("IsFetchingIndividualElementsOfTerm1",
+                                                                 e)] = DateTime.Now.ToLongTimeString();
         }
 
-        public void onPropertyChanged(object sender, PropertyChangedEventArgs e) {
-            resultsCODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+        public void onIsFetchingSigOfTerm1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            isFetchingSigOfTerm1CODEvents[Message("IsFetchingSigOfTerm1",
+                                                  e)] = DateTime.Now.ToLongTimeString();
         }
 
-        // These event handler will be attached/detached from the ObservableConcurrentDictionary via that class' constructor and dispose method
-        public void onResultsCODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            resultsCODEvents[Message("Outer", e)] = DateTime.Now.ToLongTimeString();
+        public void onResultsLevel0CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            resultsCODEvents[Message("Level0", e)] = DateTime.Now.ToLongTimeString();
         }
 
+        public void onResultsLevel1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            resultsCODEvents[Message("Level1", e)] = DateTime.Now.ToLongTimeString();
+        }
+
+        public void onSigIsReadyTerm1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            sigIsReadyTerm1CODEvents[Message("SigIsReadyTerm1",
+                                             e)] = DateTime.Now.ToLongTimeString();
+        }
+        #endregion CollectionChanged Event Handlers
+        #region PropertyChanged Event Handlers
         //These event handlers will be attached to each innerDictionary
-        public void onResultsNestedCODPropertyChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            resultsCODEvents[Message("Nested", e)] = DateTime.Now.ToLongTimeString();
-        }
 
-        public void onSigIsReadyToCalculateAndStoreCODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            SigIsReadyToCalculateAndStoreCODEvents[Message("SigIsReadyToCalculateAndStore",
-                                                           e)] = DateTime.Now.ToLongTimeString();
-        }
-
-        public void onTerm1PropertyChanged(object sender, PropertyChangedEventArgs e) {
+        public void onTerm1PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
             term1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
 
-        // These event handler will be attached/detached from the Term1Dictionary via that class' constructor and dispose method
-        public void onTermCOD1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            term1CODEvents[Message("Term1", e)] = DateTime.Now.ToLongTimeString();
+        public void onIsFetchingSigOfTerm1CODPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            isFetchingSigOfTerm1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
+        public void onIsFetchingIndividualElementsOfTerm1CODPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            isFetchingIndividualElementsOfTerm1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+        }
+
+        public void onSigIsReadyTerm1PropertyChanged(object sender, PropertyChangedEventArgs e) {
+            sigIsReadyTerm1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+        }
+
+        public void onResultsLevel0CODPropertyChanged(object sender, PropertyChangedEventArgs e) {
+            resultsCODEvents[$"Ticks: {DateTime.Now.Ticks} Event: Level0PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+        }
+        public void onResultsLevel1CODPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            resultsCODEvents[$"Ticks: {DateTime.Now.Ticks} Event: Level1PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+        }
+
+        #endregion PropertyChanged Event Handlers
         #endregion  
     }
 
@@ -177,14 +202,16 @@ namespace DatFlowExPatternsUnitTests {
             IInputMessage<string, double> result = new InputMessage<string, double>(("init", "init", new Dictionary<string, double>()));
             var action = new Action<IInputMessage<string, double>>(im => result =
                 im);
-            using (CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = 
-                new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsCODCollectionChanged,
-                                                                    _fixture.onResultsNestedCODPropertyChanged,
-                                                                    _fixture.onTermCOD1CollectionChanged,
-                                                                    _fixture.onSigIsReadyToCalculateAndStoreCODCollectionChanged,
-                                                                    _fixture.onIsFetchingIndividualTermKeyCODCollectionChanged))
-            {
-                var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData, mockTerm1.Object, CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+            using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData =
+                new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
+                                                                          _fixture.onResultsLevel1CODCollectionChanged,
+                                                                          _fixture.onTerm1CODCollectionChanged,
+                                                                          _fixture.onSigIsReadyTerm1CollectionChanged,
+                                                                          _fixture.onIsFetchingIndividualElementsOfTerm1CODCollectionChanged,
+                                                                          _fixture.onIsFetchingSigOfTerm1CODCollectionChanged)) {
+                var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData,
+                                                                                                                                                              mockTerm1.Object,
+                                                                                                                                                              CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
 
                 // act
                 var sendAsyncResults = calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.SendAsync(inTestData);
@@ -218,10 +245,11 @@ namespace DatFlowExPatternsUnitTests {
         public class CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData : Dataflow<string> {
             ITargetBlock<string> _headBlock;
 
-            public CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) :base(calculateAndStoreFromInputAndAsyncTermsOptions){
-
+            public CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
                 var _accepterJSON = new ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
-                var _terminator = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData, webGet, calculateAndStoreFromInputAndAsyncTermsOptions);
+                var _terminator = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
+                                                                              webGet,
+                                                                              calculateAndStoreFromInputAndAsyncTermsOptions);
                 _accepterJSON.Name = "_accepterJSON";
                 _terminator.Name = "_terminator";
                 this.RegisterChild(_accepterJSON);
@@ -277,10 +305,12 @@ namespace DatFlowExPatternsUnitTests {
         // Ensure that the dataflow ParseSingleInputStringFormattedAsJSONToInputMessage will take in a string and put out an InputMessage
         public class ParseSingleInputStringFormattedAsJSONToAction : Dataflow<string> {
             ITargetBlock<string> _headBlock;
-            public ParseSingleInputStringFormattedAsJSONToAction(Action<IInputMessage<string, double>> action) : this(action, CalculateAndStoreFromInputAndAsyncTermsOptions.Default)
-            {
+
+            public ParseSingleInputStringFormattedAsJSONToAction(Action<IInputMessage<string, double>> action) : this(action,
+                                                                                                                      CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
             }
-                public ParseSingleInputStringFormattedAsJSONToAction(Action<IInputMessage<string, double>> action, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+
+            public ParseSingleInputStringFormattedAsJSONToAction(Action<IInputMessage<string, double>> action, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
                 var _accepterJSON = new ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
                 var _terminator = DataflowUtils.FromDelegate<IInputMessage<string, double>>(action);
                 _accepterJSON.Name = "_accepterJSON";
@@ -304,7 +334,8 @@ namespace DatFlowExPatternsUnitTests {
             IInputMessage<string, double> result = new InputMessage<string, double>(("init", "init", new Dictionary<string, double>()));
             var action = new Action<IInputMessage<string, double>>(im => result =
                 im);
-            var parseSingleInputStringFormattedAsJSONToAction = new ParseSingleInputStringFormattedAsJSONToAction(action, CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
+            var parseSingleInputStringFormattedAsJSONToAction = new ParseSingleInputStringFormattedAsJSONToAction(action,
+                                                                                                                  CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
 
             // act
             var sendAsyncResults = parseSingleInputStringFormattedAsJSONToAction.InputBlock.SendAsync(inTestData);
@@ -357,11 +388,11 @@ namespace DatFlowExPatternsUnitTests {
     // log start
     // _logger.Debug("Logging");
     // Create the Observable data structures and their event handlers
-    using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsCODCollectionChanged,
+    using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
     _fixture.onResultsNestedCODPropertyChanged,
-    _fixture.onTermCOD1CollectionChanged,
-    _fixture.onSigIsReadyToCalculateAndStoreCODCollectionChanged,
-    _fixture.onIsFetchingIndividualTermKeyCODCollectionChanged)) {
+    _fixture.onTerm1CODCollectionChanged,
+    _fixture.onSigIsReadyTerm1CollectionChanged,
+    _fixture.onIsFetchingIndividualElementsOfTerm1CODCollectionChanged)) {
     // Create a new DataFlowEx network that combines the ParseInputStringFormattedAsJSONToInputMessage and CalculateAndStoreFromInputAndAsyncTerms networks
     var parseStringToTupleThenResultsFromInputAnd1Term = new ParseStringToTupleThenResultsFromInputAnd1Term(calculateAndStoreFromInputAndAsyncTermsObservableData,
     mockTerm1.Object,
@@ -461,11 +492,11 @@ namespace DatFlowExPatternsUnitTests {
     
     // act
     // Create the Observable data structures and their event handlers
-    using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsCODCollectionChanged,
+    using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
     _fixture.onResultsNestedCODPropertyChanged,
-    _fixture.onTermCOD1CollectionChanged,
-    _fixture.onSigIsReadyToCalculateAndStoreCODCollectionChanged,
-    _fixture.onIsFetchingIndividualTermKeyCODCollectionChanged)) {
+    _fixture.onTerm1CODCollectionChanged,
+    _fixture.onSigIsReadyTerm1CollectionChanged,
+    _fixture.onIsFetchingIndividualElementsOfTerm1CODCollectionChanged)) {
     CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions();
     // Create the new DataFlowEx network 
     var rFromJSONInputAnd1Term = new ParseJSONStringCollectionToInputMessage(calculateAndStoreFromInputAndAsyncTermsObservableData,
