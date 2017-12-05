@@ -67,10 +67,10 @@ namespace DatFlowExPatternsUnitTests {
         /// The is the dictionary that holds the information written by the event handlers that are reporting changes to the ResultsCOD
         /// During testing, this "stands in" for a GUI visual control that would normally receive these events
         /// </summary>
-        public ConcurrentDictionary<string, string> isFetchingIndividualElementsOfTerm1CODEvents = new ConcurrentDictionary<string, string>();
-        public ConcurrentDictionary<string, string> isFetchingSigOfTerm1CODEvents = new ConcurrentDictionary<string, string>();
+        public ConcurrentDictionary<string, string> fetchingIndividualElementsOfTerm1CODEvents = new ConcurrentDictionary<string, string>();
+        public ConcurrentDictionary<string, string> fetchingElementSetsOfTerm1Events = new ConcurrentDictionary<string, string>();
         public ConcurrentDictionary<string, string> resultsCODEvents = new ConcurrentDictionary<string, string>();
-        public ConcurrentDictionary<string, string> sigIsReadyTerm1CODEvents = new ConcurrentDictionary<string, string>();
+        public ConcurrentDictionary<string, string> elementSetsOfTerm1ReadyEvents = new ConcurrentDictionary<string, string>();
         public ConcurrentDictionary<string, string> term1CODEvents = new ConcurrentDictionary<string, string>();
         #endregion
         #region Event handlers for the CODs found in the CalculateAndStoreFromInputAndAsyncTermsObservableData class
@@ -109,13 +109,13 @@ namespace DatFlowExPatternsUnitTests {
             term1CODEvents[Message("Term1", e)] = DateTime.Now.ToLongTimeString();
         }
 
-        public void onIsFetchingIndividualElementsOfTerm1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            isFetchingIndividualElementsOfTerm1CODEvents[Message("IsFetchingIndividualElementsOfTerm1",
+        public void onFetchingIndividualElementsOfTerm1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            fetchingIndividualElementsOfTerm1CODEvents[Message("FetchingIndividualElementsOfTerm1",
                                                                  e)] = DateTime.Now.ToLongTimeString();
         }
 
-        public void onIsFetchingSigOfTerm1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            isFetchingSigOfTerm1CODEvents[Message("IsFetchingSigOfTerm1",
+        public void onFetchingElementSetsOfTerm1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            fetchingElementSetsOfTerm1Events[Message("IsFetchingSigOfTerm1",
                                                   e)] = DateTime.Now.ToLongTimeString();
         }
 
@@ -129,7 +129,7 @@ namespace DatFlowExPatternsUnitTests {
         }
 
         public void onSigIsReadyTerm1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            sigIsReadyTerm1CODEvents[Message("SigIsReadyTerm1",
+            elementSetsOfTerm1ReadyEvents[Message("SigIsReadyTerm1",
                                              e)] = DateTime.Now.ToLongTimeString();
         }
         #endregion CollectionChanged Event Handlers
@@ -141,17 +141,17 @@ namespace DatFlowExPatternsUnitTests {
             term1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
 
-        public void onIsFetchingSigOfTerm1CODPropertyChanged(object sender, PropertyChangedEventArgs e)
+        public void onFetchingElementSetsOfTerm1PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            isFetchingSigOfTerm1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+            fetchingElementSetsOfTerm1Events[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
-        public void onIsFetchingIndividualElementsOfTerm1CODPropertyChanged(object sender, PropertyChangedEventArgs e)
+        public void onFetchingIndividualElementsOfTerm1CODPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            isFetchingIndividualElementsOfTerm1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+            fetchingIndividualElementsOfTerm1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
 
         public void onSigIsReadyTerm1PropertyChanged(object sender, PropertyChangedEventArgs e) {
-            sigIsReadyTerm1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+            elementSetsOfTerm1ReadyEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
 
         public void onResultsLevel0CODPropertyChanged(object sender, PropertyChangedEventArgs e) {
@@ -207,8 +207,8 @@ namespace DatFlowExPatternsUnitTests {
                                                                           _fixture.onResultsLevel1CODCollectionChanged,
                                                                           _fixture.onTerm1CODCollectionChanged,
                                                                           _fixture.onSigIsReadyTerm1CollectionChanged,
-                                                                          _fixture.onIsFetchingIndividualElementsOfTerm1CODCollectionChanged,
-                                                                          _fixture.onIsFetchingSigOfTerm1CODCollectionChanged)) {
+                                                                          _fixture.onFetchingIndividualElementsOfTerm1CODCollectionChanged,
+                                                                          _fixture.onFetchingElementSetsOfTerm1CollectionChanged)) {
                 var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData,
                                                                                                                                                               mockTerm1.Object,
                                                                                                                                                               CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
@@ -392,7 +392,7 @@ namespace DatFlowExPatternsUnitTests {
     _fixture.onResultsNestedCODPropertyChanged,
     _fixture.onTerm1CODCollectionChanged,
     _fixture.onSigIsReadyTerm1CollectionChanged,
-    _fixture.onIsFetchingIndividualElementsOfTerm1CODCollectionChanged)) {
+    _fixture.onFetchingIndividualElementsOfTerm1CODCollectionChanged)) {
     // Create a new DataFlowEx network that combines the ParseInputStringFormattedAsJSONToInputMessage and CalculateAndStoreFromInputAndAsyncTerms networks
     var parseStringToTupleThenResultsFromInputAnd1Term = new ParseStringToTupleThenResultsFromInputAnd1Term(calculateAndStoreFromInputAndAsyncTermsObservableData,
     mockTerm1.Object,
@@ -496,7 +496,7 @@ namespace DatFlowExPatternsUnitTests {
     _fixture.onResultsNestedCODPropertyChanged,
     _fixture.onTerm1CODCollectionChanged,
     _fixture.onSigIsReadyTerm1CollectionChanged,
-    _fixture.onIsFetchingIndividualElementsOfTerm1CODCollectionChanged)) {
+    _fixture.onFetchingIndividualElementsOfTerm1CODCollectionChanged)) {
     CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions();
     // Create the new DataFlowEx network 
     var rFromJSONInputAnd1Term = new ParseJSONStringCollectionToInputMessage(calculateAndStoreFromInputAndAsyncTermsObservableData,

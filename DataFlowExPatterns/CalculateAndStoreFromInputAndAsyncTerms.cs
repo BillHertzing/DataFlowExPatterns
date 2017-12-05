@@ -91,12 +91,11 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 // create a signature from the set of keys found in terms1
                 KeySignature<string> sig = new KeySignature<string>(_input.Value.terms1.Keys);
 
-                // Is the sig.largest in the SigIsReadyTerm1COD dictionary? set the output bool accordingly
-                bool isReadyToCalculate = SigIsReadyTerm1COD.ContainsKey(sig.Longest());
+                // Is the sig.largest in the ElementSetsOfTerm1Ready dictionary? set the output bool accordingly
+                bool isReadyToCalculate = ElementSetsOfTerm1Ready.ContainsKey(sig.Longest());
 
                 // Pass the message along to the next block, which will be either the _terminator, or the _dynamicBuffers
                 return new InternalMessage<string>((_input.Value.k1, _input.Value.k2, _input.Value.terms1, sig, isReadyToCalculate)); }).ToDataflow();
-
 
             _accepter.Name = "_accepter";
             _terminator.Name = "_terminator";
@@ -211,20 +210,20 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                     Log.Trace("Registering _buffer");
                     RegisterChild(_buffer);
                     // critical section
-                    // iterate each individual element of the sig, and get those that are not already present in the COD IsFetchingIndividualElementsOfTerm1
+                    // iterate each individual element of the sig, and get those that are not already present in the COD FetchingIndividualElementsOfTerm1
                     foreach(var element in sig.IndividualElements)
                     {
-                        if (!IsFetchingIndividualElementsOfTerm1.ContainsKey(element))
+                        if (!FetchingIndividualElementsOfTerm1.ContainsKey(element))
                         {
                             // For each element that is not already being fetched, start the async task to fetch it
-                            Log.Trace($"Fetching AsyncWebGet for {element} and storing away task");
+                            Log.Trace($"Fetching AsyncWebGet for {element} and storing the task in FetchingIndividualElementsOfTerm1 indexed by {element}");
                             // call the async function that fetches the information for each individual element in the elementSet
-                            // record the individual element it's corresponding task in the IsFetchingIndividualElementsOfTerm1
-                            IsFetchingIndividualElementsOfTerm1[element] = webGet.AsyncWebGet<double>(element);
+                            // record the individual element and it's corresponding task in the FetchingIndividualElementsOfTerm1
+                            FetchingIndividualElementsOfTerm1[element] = webGet.AsyncWebGet<double>(element);
                         }
                     }
-                    // Record into IsFetchingSigOfTerm1COD the sig.Longest as key, and for the data,
-                    // create a COD whose keys are the keys of sig.IndividualElements in the IsFetchingSigOfTerm1COD
+                    // Record into FetchingElementSetsOfTerm1 the sig.Longest as key, and for the data,
+                    // create a COD whose keys are the keys of sig.IndividualElements in the FetchingElementSetsOfTerm1
                     Log.Trace("Creating new concurrent dictionary");
                     var x = new ConcurrentObservableDictionary<string, byte>();
                      foreach (var element in sig.IndividualElements)
@@ -232,8 +231,8 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                         Log.Trace($"Creating an entry for {element}" );
                         x[element] = default;
                     }
-                    Log.Trace($"Creating an entry for IsFetchingSigOfTerm1COD. Key is {sig.Longest()} data is x");
-                    IsFetchingSigOfTerm1COD[sig.Longest()] = x;
+                    Log.Trace($"Creating an entry for FetchingElementSetsOfTerm1. Key is {sig.Longest()} data is x");
+                    FetchingElementSetsOfTerm1[sig.Longest()] = x;
                     Log.Trace("Constructor Finished");
                 }
 
@@ -247,12 +246,12 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 }
                 #region ObservableDataAccessors
 
-                ConcurrentObservableDictionary<string, Task> IsFetchingIndividualElementsOfTerm1
+                ConcurrentObservableDictionary<string, Task> FetchingIndividualElementsOfTerm1
                 {
-                    get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1 =
+                    get => _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1 =
 value;
                 }
-                ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> IsFetchingSigOfTerm1COD { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD =
+                ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> FetchingElementSetsOfTerm1 { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1 =
                     value; }
                 #endregion ObservableDataAccessors    
                 #region Dataflow Input and Output blocks Accessors
@@ -294,19 +293,19 @@ value;
         {
             Log.Trace("Starting the CheckAsyncTasks method");
             bool unfinished;
-            // iterate each individual term of the sig, and get those that are not already present in the COD IsFetchingIndividualElementsOfTerm1
-            IsFetchingSigOfTerm1COD.Keys.ToList().ForEach(sigLongest => {
+            // iterate each individual term of the sig, and get those that are not already present in the COD FetchingIndividualElementsOfTerm1
+            FetchingElementSetsOfTerm1.Keys.ToList().ForEach(sigLongest => {
                 unfinished = false;
-                Log.Trace("Iterating IsFetchingSigOfTerm1COD.Keys, now on {0}", sigLongest);
-                IsFetchingSigOfTerm1COD[sigLongest].Keys.ToList().ForEach(element =>
+                Log.Trace("Iterating FetchingElementSetsOfTerm1.Keys, now on {0}", sigLongest);
+                FetchingElementSetsOfTerm1[sigLongest].Keys.ToList().ForEach(element =>
                 {
-                    Log.Trace("Iterating IsFetchingSigOfTerm1COD[{0}].Keys, now on {1}", sigLongest, element);
-                    unfinished &= IsFetchingIndividualElementsOfTerm1[element].IsCompleted;
+                    Log.Trace("Iterating FetchingElementSetsOfTerm1[{0}].Keys, now on {1}", sigLongest, element);
+                    unfinished &= FetchingIndividualElementsOfTerm1[element].IsCompleted;
                     if (!unfinished)
                     {
                         Log.Trace("sigLongest {0} is now finished", sigLongest);
-                        // if sigLongest is finished, but not yet a key in SigIsReadyTerm1COD then this is the first loop where it is finally ready
-                        if (!SigIsReadyTerm1COD.ContainsKey(sigLongest))
+                        // if sigLongest is finished, but not yet a key in ElementSetsOfTerm1Ready then this is the first loop where it is finally ready
+                        if (!ElementSetsOfTerm1Ready.ContainsKey(sigLongest))
                         {
                             // attach the transientBlock to the _terminator  
                             Log.Trace("attaching buffer {0} to terminator block, based on sigLongest {1}", 1, sigLongest);
@@ -314,12 +313,12 @@ value;
                             //_terminator.RegisterDependency(_buffer);
                             // attach data linkage second
                            // _buffer.LinkTo(_terminator);
-                            // put sigLongest into the hashset ElementSetsOfTerm1Ready =>SigIsReadyTerm1COD
-                            Log.Trace("sigLongest {0} is now in the SigIsReadyTerm1COD", sigLongest);
-                            SigIsReadyTerm1COD[sigLongest] = default(byte);
-                            //remove this sigLongest from the IsFetchingSigOfTerm1COD => FetchingElementSetsOfTerm1COD dictionary
-                            IsFetchingSigOfTerm1COD.Remove(sigLongest);
-                            Log.Trace("sigLongest {0} has been removed from the SigIsReadyTerm1COD", sigLongest);
+                            // put sigLongest into ElementSetsOfTerm1Ready
+                            Log.Trace("sigLongest {0} is now in the ElementSetsOfTerm1Ready", sigLongest);
+                            ElementSetsOfTerm1Ready[sigLongest] = default(byte);
+                            //remove this sigLongest from the FetchingElementSetsOfTerm1 => FetchingElementSetsOfTerm1COD dictionary
+                            FetchingElementSetsOfTerm1.Remove(sigLongest);
+                            Log.Trace("sigLongest {0} has been removed from the ElementSetsOfTerm1Ready", sigLongest);
                         }
                     }
                     else
@@ -352,17 +351,17 @@ value;
         #endregion timer Accessors
         #region ObservableDataAccessors
 
-        ConcurrentObservableDictionary<string, Task> IsFetchingIndividualElementsOfTerm1 { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1 =
+        ConcurrentObservableDictionary<string, Task> FetchingIndividualElementsOfTerm1 { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1 =
             value; }
 
-        ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> IsFetchingSigOfTerm1COD
+        ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> FetchingElementSetsOfTerm1
         {
-            get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD =
+            get => _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1 =
 value;
         }
 
-        ConcurrentObservableDictionary<string, byte> SigIsReadyTerm1COD
-        { get => this._calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD; set => this._calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD =
+        ConcurrentObservableDictionary<string, byte> ElementSetsOfTerm1Ready
+        { get => this._calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready; set => this._calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready =
             value; }
         #endregion ObservableDataAccessors
         #region Configure this class to use ATAP.Utilities.Logging
@@ -488,7 +487,7 @@ value;
                 // if all the keys in this messages terms1 dictionary are in the keys of AreReadyToCalculate, just forward the message
                 // Put the test here again at the top of the block in case the termn was populated between the time the message left the _accepter and got sent to the _waitQueue
                 // ToDo don't use a string, use a collection of keys
-                if (_sigIsReadyTerm1COD.ContainsKey(_input.c1)) return _input;
+                if (_elementSetsOfTerm1Ready.ContainsKey(_input.c1)) return _input;
 
                 // does a dataflowEX exist for the class of messages having this set of keys in its terms1 dictionary?
                 if (_buffers.ContainsKey(_input.sig))
@@ -511,16 +510,16 @@ value;
                 // processing resumes here
                 // populate the Term1 COD for the single key c that just finished
                 calculateAndStoreFromInputAndAsyncTermsObservableData.Term1COD[_input.c1] =
-                // update the _sigIsReadyTerm1COD for the single key c that just finished
-                _sigIsReadyTerm1COD[_input.c1] = default;
+                // update the _elementSetsOfTerm1Ready for the single key c that just finished
+                _elementSetsOfTerm1Ready[_input.c1] = default;
                 // does this the single key c that just finished complete the set of c's needed to dequeue a class of messages
                 // if so, release all the messages in that queue to the output.
-                // See if all the values of the keys in this message's HR dictionary are already in _isFetchingIndividualElementsOfTerm1COD
+                // See if all the values of the keys in this message's HR dictionary are already in _fetchingIndividualElementsOfTerm1COD
                 // and if not, create the async tasks that will populate them
-                if (!_isFetchingIndividualElementsOfTerm1COD.ContainsKey(_input.c1))
+                if (!_fetchingIndividualElementsOfTerm1COD.ContainsKey(_input.c1))
                 {
                     //todo make this into something that returns an awaitable task
-                    _isFetchingIndividualElementsOfTerm1COD[_input.c1] = default;
+                    _fetchingIndividualElementsOfTerm1COD[_input.c1] = default;
 
                 }
                 // populate the Term1 COD for the keys c1..cn in the dictionary HR
@@ -595,32 +594,32 @@ value;
             Log.Trace("Starting the CheckAsyncTasks method");
             // critical section
             bool unfinished;
-            // iterate each individual term of the sig, and get those that are not already present in the COD IsFetchingIndividualElementsOfTerm1
-            IsFetchingSigOfTerm1COD.Keys
+            // iterate each individual term of the sig, and get those that are not already present in the COD FetchingIndividualElementsOfTerm1
+            FetchingElementSetsOfTerm1.Keys
                 .Where(sigLongest =>
                 { 
                     unfinished = false;
-                    IsFetchingSigOfTerm1COD[sigLongest].Keys
+                    FetchingElementSetsOfTerm1[sigLongest].Keys
                         .Where(element =>
                         {
-                            unfinished &= IsFetchingIndividualElementsOfTerm1[element].IsCompleted;
+                            unfinished &= FetchingIndividualElementsOfTerm1[element].IsCompleted;
                         if (!unfinished)
                     {
                         // if sig is finished, and Ready is false this is the first loop where it is finally ready
-                        if (!SigIsReadyTerm1COD[sigLongest])
+                        if (!ElementSetsOfTerm1Ready[sigLongest])
                         {
                             // attach the transientBlock to the _terminator  
-                            // set the SigIsReadyTerm1COD[sigLongest] to true
-                            SigIsReadyTerm1COD[sigLongest] = true;
-                            //remove this sigLongest from the IsFetchingSigOfTerm1COD dictionary
-                            IsFetchingSigOfTerm1COD.Remove(sigLongest)
+                            // set the ElementSetsOfTerm1Ready[sigLongest] to true
+                            ElementSetsOfTerm1Ready[sigLongest] = true;
+                            //remove this sigLongest from the FetchingElementSetsOfTerm1 dictionary
+                            FetchingElementSetsOfTerm1.Remove(sigLongest)
                         }
                     }
                 }
 
                         // Get the collection of keys from 
                         //Log.Trace("keycollction of waitingforsi");
-                        //             _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD.ToString());
+                        //             _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1.ToString());
 
                 // Get the collection of the output predicates for TransientBuffer subflows in the DynamicBuffers dataflow that are not linked to _terminator
                 // ConcurrentDictionary<string, DynamicBuffers.TransientBuffer> _waitingTBSigs = new ConcurrentDictionary<string, DynamicBuffers.TransientBuffer>();
@@ -630,7 +629,7 @@ value;
                 // _dynamicBuffers.Children.Where<IDataflowDependency>(child=>child.Blocks.Where<IDataflowBlock>(block=>block.GetBufferCount().Item2 > 0));
                 // get the collection of keys corresponding to the collection of term1 async tasks that have not completed.
                 // ConcurrentDictionary<string, byte> _waiting1TermFetchSigs = new ConcurrentDictionary<string, byte>();
-                //_calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1
+                //_calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1
                 //    .Where(kvp => kvp.Value.IsCompleted == false)
                 //    .ToList()
                 //    .ForEach(kvp => _waiting1TermFetchSigs.TryAdd(kvp.Key,
