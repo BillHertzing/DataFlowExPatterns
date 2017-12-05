@@ -9,7 +9,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
     {
         public class KeySignature<T> {
             static string defaultSignatureDelimiter = ",";
-            IEnumerable<T> _individualTerms;
+            IEnumerable<T> _individualElements;
             string _longest;
             Func<IEnumerable<T>, string> _longestKeySignatureFunction;
             string _signatureDelimiter;
@@ -22,7 +22,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
             public KeySignature(IEnumerable<T> inputCollection, string signatureDelimiter, Func<IEnumerable<T>, string> longestKeySignatureFunction) {
                 _signatureDelimiter = signatureDelimiter;
                 _longestKeySignatureFunction = longestKeySignatureFunction;
-                _individualTerms = inputCollection;
+                _individualElements = inputCollection;
                 _longest = _longestKeySignatureFunction(inputCollection);
             }
 
@@ -38,7 +38,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
                 return _longest;
             }
 
-            public IEnumerable<T> IndividualTerms { get => _individualTerms; }
+            public IEnumerable<T> IndividualElements { get => _individualElements; }
         }
     }
 }

@@ -1,15 +1,13 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using System.Timers;
 using ATAP.Utilities.Logging.Logging;
 using Gridsum.DataflowEx;
 using Newtonsoft.Json;
 using Swordfish.NET.Collections;
-using System.Timers;
 
 namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     /// <summary>
@@ -26,25 +24,25 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     ///   ToDo: a maxtimeToWait for the async fetch task to complete, after the _acceptor receives a Complete signal, before declaring a transient block faulted. 
     /// </summary>
     public partial class CalculateAndStoreFromInputAndAsyncTerms : Dataflow<IInputMessage<string, double>> {
-
+        // External data, defined in class, populated in ctor.
         CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
         CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
         // Head of this dataflow graph
         ITargetBlock<IInputMessage<string, double>> _headBlock;
+        // External http client library.
         IWebGet _webGet;
-   
-    // Constructor
-    public CalculateAndStoreFromInputAndAsyncTerms(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-        Log.Trace("Constructor starting");
 
-        _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
-        _webGet = webGet;
-        _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
+        // Constructor
+        public CalculateAndStoreFromInputAndAsyncTerms(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+            Log.Trace("Constructor starting");
 
-        // The terminal block performs both the Compute  and the Store operations
-        Log.Trace("Creating _terminator");
-            var _terminator = new ActionBlock<InternalMessage<string>>(_input => {
-                Log.Trace("_terminator received InternalMessage");
+            _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
+            _webGet = webGet;
+            _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
+
+            // The terminal block performs both the Compute  and the Store operations
+            Log.Trace("Creating _terminator");
+            var _terminator = new ActionBlock<InternalMessage<string>>(_input => { Log.Trace("_terminator received InternalMessage");
                 // do the calculation for all KeyValuePairs in terms1
                 var r1 = 0.0;
                 _input.Value.terms1.ToList()
@@ -70,7 +68,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 // ToDo need a constructor and a property that will let a caller change the default value for how long to wait for an async fetch to complete after an upstream completion occurs
                 // ToDo add exception handling to ensure the tasks, as well as the async method's resources, are released if any blocks in the dataflow fault
                 // CheckAsyncTasks();
-                Log.Trace("Accepter received IInputMessage");
+ Log.Trace("Accepter received IInputMessage");
 
                 // Work on the _input
                 // create a signature from the set of keys found in terms1
@@ -80,8 +78,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 bool isReadyToCalculate = SigIsReadyToCalculateAndStore.ContainsKey(sig.Longest());
 
                 // Pass the message along to the next block, which will be either the _terminator, or the _dynamicBuffers
-                return new InternalMessage<string>((_input.Value.k1, _input.Value.k2, _input.Value.terms1, sig, isReadyToCalculate));
-            }).ToDataflow();
+                return new InternalMessage<string>((_input.Value.k1, _input.Value.k2, _input.Value.terms1, sig, isReadyToCalculate)); }).ToDataflow();
 
 
             _accepter.Name = "_accepter";
@@ -113,54 +110,101 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             this._headBlock = _accepter.InputBlock;
             // ToDo: start PreparingToCalculate to pre-populate the initial list of C key signatures
             Log.Trace("Constructor Finished");
-
         }
 
+        #region WebGet accessors
+        IWebGet WebGet { get => _webGet; set => _webGet = value; }
+        #endregion WebGet accessors
+        #region Dataflow Input and Output blocks Accessors
         public override ITargetBlock<IInputMessage<string, double>> InputBlock { get { return this._headBlock; } }
-
-        public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualElementsOfTerm1 { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1 =
-            value; }
-
-        public ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD =
-            value; }
-
-        public IWebGet WebGet { get => _webGet; set => _webGet = value; }
-
-        // The class used as the message between the _acceptor, The _DynamicBuffers, and the _terminator
-        public class InternalMessage<TKeyTerm1> {
-            (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToCalculate) _value;
-
-            public InternalMessage((string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToCalculate) value) {
-                _value = value;
-            }
-
-            public (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToCalculate) Value { get => _value; set => _value =
-                value; }
-        }
-
-        // ToDo: replace hard coded string with the type passed when the parent dataflow is declared
+        #endregion Dataflow Input and Output blocks Accessors
+        // ToDo:  make abstract and replace hard coded string with the type passed when the dataflow pattern is declared
         public class DynamicBuffers : DataDispatcher<InternalMessage<string>, KeySignature<string>> {
             CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
             CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
             IWebGet _webGet;
+            // If a TransientBlock needs to be created, this is where the async fetch tasks check-for-completion loop timer is declared/stored.
             Timer asyncFetchCheckTimer;
+
             public DynamicBuffers(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(@out => @out.Value.sig) {
                 Log.Trace("Constructor Starting");
                 _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
                 _webGet = webGet;
                 _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
 
-                // Create a timer that is used to check on the async fetch tasks
-                // the timer has its interval from the options passed into this constructor, it will restart and the event handler will stop and start it each time
+                // Create a timer that is used to check on the async fetch tasks, the  async fetch tasks check-for-completion loop timer
+                // the timer has its interval from the options passed into this constructor, it will restart and the event handler will stop the timer and start the timer each time
+                // ToDo add the timer that checks on the health of the async fetch tasks check-for-completion loop every DefaultAsyncFetchTimeout interval, expecting it to provide a heartbeat, 
                 // The Cleanup method will call this timers Dispose method
                 // the event handler's job is to call CheckAsyncTasks which will check for completed fetches and link the child Transient buffers to the _terminator
                 Log.Trace("creating and starting the AsyncFetchCheckTimer");
                 AsyncFetchCheckTimer = new Timer(_calculateAndStoreFromInputAndAsyncTermsOptions.AsyncFetchTimeInterval.TotalMilliseconds);
                 AsyncFetchCheckTimer.AutoReset = true;
+                // set the event handler (callback) for this timer to the function for async fetch tasks check-for-completion loop
                 AsyncFetchCheckTimer.Elapsed += new ElapsedEventHandler(AsyncFetchCheckTimer_Elapsed);
                 AsyncFetchCheckTimer.Start();
 
                 Log.Trace("Constructor Finished");
+            }
+
+            void AsyncFetchCheckTimer_Elapsed(object sender, ElapsedEventArgs e) {
+                Log.Trace("Starting the AsyncFetchCheckTimer_Elapsed");
+                AsyncFetchCheckTimer.Stop();
+                CheckAsyncTasks();
+                AsyncFetchCheckTimer.Start();
+                Log.Trace("Leaving the AsyncFetchCheckTimer_Elapsed");
+            }
+
+            #region critical section that periodicly checks on the status of the outstanding tasks that are fetching terms
+            // This is the method called, under a number of different conditions, to determine if the Async tasks that fetch a particular Term1 has completed
+            /// <summary>
+            /// Checks the asynchronous tasks.
+            /// </summary>
+            /// 
+            void CheckAsyncTasks() {
+                Log.Trace("Starting the CheckAsyncTasks method");
+                bool unfinished;
+                // iterate each individual term of the sig, and get those that are not already present in the COD IsFetchingIndividualElementsOfTerm1
+                IsFetchingSigOfTerm1COD.Keys.ToList().ForEach(sigLongest => {
+                    unfinished = false;
+                    IsFetchingSigOfTerm1COD[sigLongest].Keys.ToList().ForEach(element =>
+                    {
+                        unfinished &= IsFetchingIndividualElementsOfTerm1[element].IsCompleted;
+                        if (!unfinished)
+                        {
+                            Log.Trace("sigLongest {0} is now finished", sigLongest);
+                            // if sigLongest is finished, but not yet a key in SigIsReadyTerm1COD then this is the first loop where it is finally ready
+                            if (!SigIsReadyTerm1COD.ContainsKey(sigLongest))
+                            {
+                                // attach the transientBlock to the _terminator  
+                                Log.Trace("attaching buffer {0} to terminator block, based on sigLongest {1}", 1, sigLongest);
+                                // put sigLongest into the hashset ElementSetsOfTerm1Ready =>SigIsReadyTerm1COD
+                                Log.Trace("sigLongest {0} is now in the SigIsReadyTerm1COD", sigLongest);
+                                SigIsReadyTerm1COD[sigLongest] = default(byte);
+                                //remove this sigLongest from the IsFetchingSigOfTerm1COD => FetchingElementSetsOfTerm1COD dictionary
+                                IsFetchingSigOfTerm1COD.Remove(sigLongest);
+                                Log.Trace("sigLongest {0} has been removed from the SigIsReadyTerm1COD", sigLongest);
+                            }
+                        }
+                    });
+                });
+
+    
+                    Log.Trace("Leaving the CheckAsyncTasks method");
+            }
+            #endregion
+            #region WebGet accessors
+            IWebGet WebGet { get => _webGet; set => _webGet = value; }
+            #endregion WebGet accessors
+
+            protected override void CleanUp(Exception e) {
+                Log.Trace("Starting Cleanup and calling base.Cleanup");
+                base.CleanUp(e);
+                Log.Trace("Cleanup after base");
+                // dispose of the asyncFetchCheckTimer
+                Log.Trace("Disposing the AsyncFetchCheckTimer");
+                AsyncFetchCheckTimer.Dispose();
+                Log.Trace("Cleanup complete");
             }
 
             /// <summary>
@@ -170,20 +214,22 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             /// <returns>Dataflow&lt;InternalMessage&lt;System.String&gt;&gt;.</returns>
             protected override Dataflow<InternalMessage<string>> CreateChildFlow(KeySignature<string> sig) {
                 // dynamically create a TransientBuffer buffer. The dispatchKey is based upon the value of sig
-                // pass sig to the TransientBuffer constructor so the TransientBuffer can create the async tasks to fetch each individual term of the sig
-                // pass the constructor a handle to the ConcurrentObservableDictionary<string, Task>
+                // pass sig to the TransientBuffer constructor, and wget, and the ObservableData class
+                // so the TransientBuffer can create the async tasks to fetch each individual term of the sig
                 Log.Trace("CreateChildFlow is creating _buffer");
 
                 var _buffer = new TransientBuffer(sig,
                                                   _calculateAndStoreFromInputAndAsyncTermsObservableData,
-                                                  _webGet,
+                                                  WebGet,
                                                   _calculateAndStoreFromInputAndAsyncTermsOptions);
-                // Store the sig._individualTerms collection and this buffer into sigIsWaitingForCompletion COD
-                Log.Trace("CreateChildFlow is storing {0} in IsFetchingSigOfTerm1", sig.Longest());
+                // Store the sig._individualElements collection and this buffer into sigIsWaitingForCompletion COD
+                Log.Trace("CreateChildFlow is storing {0} in IsFetchingSigOfTerm1",
+                          sig.Longest());
                 try
                 {
-                    _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD[sig.Longest()] = default(byte);
-                 } catch {
+                }
+                catch
+                {
                     log.Error("error when trying to store the sig.Longest value");
                     throw new Exception("error when trying to store the sig.Longest value");
                 }
@@ -193,19 +239,10 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 return _buffer;
             }
 
-            public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualElementsOfTerm1
-            {
-                get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1 =
-value;
-            }
-
-            public ConcurrentObservableDictionary<string, byte> SigIsReadyTerm1COD
-            {
-                get => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD =
-value;
-            }
-
-            public IWebGet WebGet { get => _webGet; set => _webGet = value; }
+            #region timer Accessors
+            public Timer AsyncFetchCheckTimer { get => asyncFetchCheckTimer; set => asyncFetchCheckTimer =
+                value; }
+            #endregion timer Accessors
 
             /// <summary>
             /// Transient Buffer node for a single sig
@@ -230,171 +267,105 @@ value;
                     Log.Trace("Registering _buffer");
                     RegisterChild(_buffer);
                     // critical section
-                    // iterate each individual term of the sig, and get those that are not already present in the COD IsFetchingIndividualElementsOfTerm1
-                    sig.IndividualTerms.Where(term => !IsFetchingIndividualElementsOfTerm1.ContainsKey(term))
-                        .ToList()
-                        .ForEach(term =>
-                        {
-                            // call the async function that fetches the information for each individual term in the sig
-                            // record the individual term and the task in the COD isFetchingIndividualElementsOfTerm1 passed as a parameter during the ctor
-                            Log.Trace("Fetching AsyncWebGet");
-                            Log.Debug("Fetching AsyncWebGet for {term} and storing away task",term);
-                            IsFetchingIndividualElementsOfTerm1[term] = webGet.AsyncWebGet<double>(term);
-                        });
+                    // iterate each individual element of the sig, and get those that are not already present in the COD IsFetchingIndividualElementsOfTerm1
+                    sig.IndividualElements.Where(element => !IsFetchingIndividualElementsOfTerm1.ContainsKey(element))
+                        .ToList();
+                    /*
+                    // For each element that is not already being fetched, start the async task to fetch it
+                    .ForEach(element => {
+                        // call the async function that fetches the information for each individual term in the sig
+                        // record the individual term and the task in the COD isFetchingIndividualElementsOfTerm1 passed as a parameter during the ctor
+                        Log.Trace("Fetching AsyncWebGet");
+                        Log.Debug("Fetching AsyncWebGet for {term} and storing away task", element);
+                        IsFetchingIndividualElementsOfTerm1[element] = webGet.AsyncWebGet<double>(element);
+                    }
+                    */
+
+                    // Record into IsFetchingSigOfTerm1COD the sig.Longest as key, and for the data, create a COD whose elements are the set of sig.IndividualElements in the IsFetchingSigOfTerm1COD
+                    //          _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD[sig.Longest()] = new ConcurrentObservableDictionary<string, byte>() { sig.IndividualElements.ToList().ForEach(element=> yield return new KeyValuePair<string,byte>(element,default(byte))) });
                     Log.Trace("Constructor Finished");
                 }
 
+                #region WebGet accessors
+                IWebGet WebGet { get => _webGet; set => _webGet = value; }
+                #endregion WebGet accessors
+
                 protected override void CleanUp(Exception e) {
-                    Log.Trace("Cleanup before base");
+                    Log.Trace("Starting Cleanup and calling base.Cleanup");
                     base.CleanUp(e);
                     Log.Trace("Cleanup after base");
-                // ToDo Cleanup any messages on the transient blocks
-                // remove this TransientBlock's event Handlers from all Tasks representing term fetches, for the individual terms for this TBs sig
+                    // ToDo Cleanup any messages on the transient blocks
+                    // remove this TransientBlock's event Handlers from all Tasks representing term fetches, for the individual terms for this TBs sig
+                    Log.Trace("Cleanup complete");
                 }
 
+                #region ObservableDataAccessors
+                ConcurrentObservableDictionary<string, Task> IsFetchingIndividualElementsOfTerm1 { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1 =
+                    value; }
+
+                ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD =
+                    value; }
+
+                ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> IsFetchingSigOfTerm1COD { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD =
+                    value; }
+                #endregion ObservableDataAccessors    
+                #region Dataflow Input and Output blocks Accessors
                 public override ITargetBlock<InternalMessage<string>> InputBlock { get { return this._buffer; } }
 
-                public ConcurrentObservableDictionary<string, Task> IsFetchingIndividualElementsOfTerm1
-                {
-                    get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1 =
-value;
-                }
-
-                public ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore
-                {
-                    get => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD =
-value;
-                }
-
-                public ConcurrentObservableDictionary<string, byte> IsFetchingSigOfTerm1COD
-                {
-                    get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD =
-value;
-                }
-
                 public override ISourceBlock<InternalMessage<string>> OutputBlock { get { return this._buffer; } }
-
-                public IWebGet WebGet { get => _webGet; set => _webGet = value; }
+                #endregion Dataflow Input and Output blocks Accessors
                 #region Configure this class to use ATAP.Utilities.Logging
                 // Internal class logger for this class
-                private static ILog log;
-                static TransientBuffer()
-                {
+                static ILog log;
+
+                static TransientBuffer() {
                     log = LogProvider.For<TransientBuffer>();
                 }
+
                 internal static ILog Log { get => log; set => log = value; }
                 #endregion Configure this class to use ATAP.Utilities.Logging
             }
 
-            #region critical section that periodicly checks on the status of the outstanding tasks that are fetching terms
+            #region ObservableDataAccessors
+            CalculateAndStoreFromInputAndAsyncTermsObservableData CalculateAndStoreFromInputAndAsyncTermsObservableData { get => _calculateAndStoreFromInputAndAsyncTermsObservableData; set => _calculateAndStoreFromInputAndAsyncTermsObservableData =
+                value; }
 
-            // This is the method called, under a number of different conditions, to determine if the Async tasks that fetch a particular Term1 has completed
-            void CheckAsyncTasks()
-            {
-                Log.Trace("Starting the CheckAsyncTasks method");
-                // Get the collection of keys from 
-                Log.Trace(                _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD.ToString());
+            ConcurrentObservableDictionary<string, Task> IsFetchingIndividualElementsOfTerm1 { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1 =
+                value; }
 
-                // Get the collection of the output predicates for TransientBuffer subflows in the DynamicBuffers dataflow that are not linked to _terminator
-                // ConcurrentDictionary<string, DynamicBuffers.TransientBuffer> _waitingTBSigs = new ConcurrentDictionary<string, DynamicBuffers.TransientBuffer>();
-                //var b = _dynamicBuffers.Blocks;
-                //var c = _dynamicBuffers.Children;
-                // This is where the issues/question has been raised on the dataFlowEx project
-                // _dynamicBuffers.Children.Where<IDataflowDependency>(child=>child.Blocks.Where<IDataflowBlock>(block=>block.GetBufferCount().Item2 > 0));
-                // get the collection of keys corresponding to the collection of term1 async tasks that have not completed.
-                // ConcurrentDictionary<string, byte> _waiting1TermFetchSigs = new ConcurrentDictionary<string, byte>();
-                //_calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1
-                //    .Where(kvp => kvp.Value.IsCompleted == false)
-                //    .ToList()
-                //    .ForEach(kvp => _waiting1TermFetchSigs.TryAdd(kvp.Key,
-                //                                                  default(byte)));
+            ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> IsFetchingSigOfTerm1COD { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD =
+                value; }
 
-                // iterate over all TransientBuffer subflows whose predicate sig does not match the collection of sigs generated by all uncompleted tasks
-                // Decompose the sig into the list of original individual keys that came in with the terms1
-                // Get the collection of those individual keys that are no longer waiting
-                // Create all possible signatures
-                //ConcurrentDictionary<string, byte> allSigs = new ConcurrentDictionary<string, byte>();
-                //IEnumerable<string> ss = _waitingTBSigs.Keys
-                //    .Except(_waiting1TermFetchSigs.Keys);
-                //// for each of those TransientBuffer subflows, link them to the _terminator dataflow
-
-                //_waitingTBSigs
-                //    .Where(kvp => ss.Contains(kvp.Key))
-                //    .ToList()
-                //    .ForEach(kvp => kvp.Value.LinkTo(_terminator));
-                // IEnumerable<DynamicBuffers.TransientBuffer> _readyToDeQueue =
-                // for each of those TransientBuffer subflows, link them to the _terminator dataflow
-
-                try
-                {
-                    foreach (DynamicBuffers.TransientBuffer tb in _readyToDeQueue) tb.LinkTo(_terminator);
-                }
-                catch (Exception)
-                {
-
-                    throw;
-                }
-                Log.Trace("Leaving the CheckAsyncTasks method");
-            }
-
-            void onPropertyChanged(object sender, PropertyChangedEventArgs e)
-            {
-                // go through the list of async fetch tasks for all the individual terms that need to complete in order for this TransientBuffer to release its output buffered messages
-                // if all tasks are complete
-                //         set sigIsReadyToCalculateAndStore for this sig.longest to true
-                //  link the data flow for this block to the _terminator
-                //  attach an event handler to teh buffer's count property such that when it reaches zero, the event handler sets this TransientBuffer's status to completed
-                // todo figure out how cancellation will work
-                // ToDo figure out how faulting and exception handling will work
-                // 
-                //receivedEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
-            }
-
-            // check on the async fetch tasks when a timer expires
-            // Create a timer, attach its callback to CheckAsyncTasks, setup its expiration, repeat indefinitely
-
-            void AsyncFetchCheckTimer_Elapsed(object sender, ElapsedEventArgs e)
-            {
-                Log.Trace("Starting the AsyncFetchCheckTimer_Elapsed");
-                AsyncFetchCheckTimer.Stop();
-                CheckAsyncTasks();
-                AsyncFetchCheckTimer.Start();
-                Log.Trace("Leaving the AsyncFetchCheckTimer_Elapsed");
-            }
-            #endregion critical section that periodicly checks on the status of the outstanding tasks that are fetching terms
-
-
-            protected override void CleanUp(Exception e)
-            {
-                Log.Trace("Cleanup before base");
-                base.CleanUp(e);
-                Log.Trace("Cleanup after base");
-                // dispose of the asyncFetchCheckTimer
-                Log.Trace("Disposing the AsyncFetchCheckTimer");
-                AsyncFetchCheckTimer.Dispose();
-                Log.Trace("CleanUp done");
-            }
-
-            public Timer AsyncFetchCheckTimer { get => asyncFetchCheckTimer; set => asyncFetchCheckTimer = value; }
+            ConcurrentObservableDictionary<string, byte> SigIsReadyTerm1COD { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD =
+                value; }
+            #endregion ObservableDataAccessors
             #region Configure this class to use ATAP.Utilities.Logging
             // Internal class logger for this class
-            private static ILog log;
-            static DynamicBuffers()
-            {
+            static ILog log;
+
+            static DynamicBuffers() {
                 log = LogProvider.For<DynamicBuffers>();
             }
+
             internal static ILog Log { get => log; set => log = value; }
-            public CalculateAndStoreFromInputAndAsyncTermsObservableData CalculateAndStoreFromInputAndAsyncTermsObservableData { get => _calculateAndStoreFromInputAndAsyncTermsObservableData; set => _calculateAndStoreFromInputAndAsyncTermsObservableData = value; }
             #endregion Configure this class to use ATAP.Utilities.Logging
         }
 
+        #region ObservableDataAccessors
+        ConcurrentObservableDictionary<string, Task> IsFetchingIndividualElementsOfTerm1 { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1 =
+            value; }
+
+        ConcurrentObservableDictionary<string, byte> SigIsReadyToCalculateAndStore { get => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD; set => _calculateAndStoreFromInputAndAsyncTermsObservableData.SigIsReadyTerm1COD =
+            value; }
+        #endregion ObservableDataAccessors
         #region Configure this class to use ATAP.Utilities.Logging
         // Internal class logger for this class
-        private static ILog log;
-        static CalculateAndStoreFromInputAndAsyncTerms()
-        {
+        static ILog log;
+
+        static CalculateAndStoreFromInputAndAsyncTerms() {
             log = LogProvider.For<CalculateAndStoreFromInputAndAsyncTerms>();
         }
+
         internal static ILog Log { get => log; set => log = value; }
         #endregion Configure this class to use ATAP.Utilities.Logging
     }
@@ -464,11 +435,9 @@ value;
                     Log.WarnException("Exception", e, "unused");
                     throw e;
                 }
-                return _coll;
- });
+                return _coll; });
             RegisterChild(_transformer);
             Log.Trace("Constructor Finished");
-
         }
 
         public override ITargetBlock<string> InputBlock { get { return _transformer; } }
@@ -477,14 +446,14 @@ value;
 
         #region Configure this class to use ATAP.Utilities.Logging
         // Internal class logger for this class
-        private static ILog log;
-        static ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection()
-        {
+        static ILog log;
+
+        static ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() {
             log = LogProvider.For<ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection>();
         }
+
         internal static ILog Log { get => log; set => log = value; }
         #endregion Configure this class to use ATAP.Utilities.Logging
-
     }
 }
 /* This block of comments were an earlier version prior to using DataDispatcher
@@ -596,3 +565,107 @@ value;
 
     */
 
+/*
+             #region critical section that periodicly checks on the status of the outstanding tasks that are fetching terms
+        // This is the method called, under a number of different conditions, to determine if the Async tasks that fetch a particular Term1 has completed
+        /// <summary>
+        /// Checks the asynchronous tasks.
+        /// </summary>
+        void CheckAsyncTasks()
+        {
+            Log.Trace("Starting the CheckAsyncTasks method");
+            // critical section
+            bool unfinished;
+            // iterate each individual term of the sig, and get those that are not already present in the COD IsFetchingIndividualElementsOfTerm1
+            IsFetchingSigOfTerm1COD.Keys
+                .Where(sigLongest =>
+                { 
+                    unfinished = false;
+                    IsFetchingSigOfTerm1COD[sigLongest].Keys
+                        .Where(element =>
+                        {
+                            unfinished &= IsFetchingIndividualElementsOfTerm1[element].IsCompleted;
+                        if (!unfinished)
+                    {
+                        // if sig is finished, and Ready is false this is the first loop where it is finally ready
+                        if (!SigIsReadyTerm1COD[sigLongest])
+                        {
+                            // attach the transientBlock to the _terminator  
+                            // set the SigIsReadyTerm1COD[sigLongest] to true
+                            SigIsReadyTerm1COD[sigLongest] = true;
+                            //remove this sigLongest from the IsFetchingSigOfTerm1COD dictionary
+                            IsFetchingSigOfTerm1COD.Remove(sigLongest)
+                        }
+                    }
+                }
+
+                        // Get the collection of keys from 
+                        //Log.Trace("keycollction of waitingforsi");
+                        //             _calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingSigOfTerm1COD.ToString());
+
+                // Get the collection of the output predicates for TransientBuffer subflows in the DynamicBuffers dataflow that are not linked to _terminator
+                // ConcurrentDictionary<string, DynamicBuffers.TransientBuffer> _waitingTBSigs = new ConcurrentDictionary<string, DynamicBuffers.TransientBuffer>();
+                //var b = _dynamicBuffers.Blocks;
+                //var c = _dynamicBuffers.Children;
+                // This is where the issues/question has been raised on the dataFlowEx project
+                // _dynamicBuffers.Children.Where<IDataflowDependency>(child=>child.Blocks.Where<IDataflowBlock>(block=>block.GetBufferCount().Item2 > 0));
+                // get the collection of keys corresponding to the collection of term1 async tasks that have not completed.
+                // ConcurrentDictionary<string, byte> _waiting1TermFetchSigs = new ConcurrentDictionary<string, byte>();
+                //_calculateAndStoreFromInputAndAsyncTermsObservableData.IsFetchingIndividualElementsOfTerm1
+                //    .Where(kvp => kvp.Value.IsCompleted == false)
+                //    .ToList()
+                //    .ForEach(kvp => _waiting1TermFetchSigs.TryAdd(kvp.Key,
+                //                                                  default(byte)));
+
+                // iterate over all TransientBuffer subflows whose predicate sig does not match the collection of sigs generated by all uncompleted tasks
+                // Decompose the sig into the list of original individual keys that came in with the terms1
+                // Get the collection of those individual keys that are no longer waiting
+                // Create all possible signatures
+                //ConcurrentDictionary<string, byte> allSigs = new ConcurrentDictionary<string, byte>();
+                //IEnumerable<string> ss = _waitingTBSigs.Keys
+                //    .Except(_waiting1TermFetchSigs.Keys);
+                //// for each of those TransientBuffer subflows, link them to the _terminator dataflow
+
+                //_waitingTBSigs
+                //    .Where(kvp => ss.Contains(kvp.Key))
+                //    .ToList()
+                //    .ForEach(kvp => kvp.Value.LinkTo(_terminator));
+                // IEnumerable<DynamicBuffers.TransientBuffer> _readyToDeQueue =
+                // for each of those TransientBuffer subflows, link them to the _terminator dataflow
+
+            try
+            {
+                //foreach (DynamicBuffers.TransientBuffer tb in _readyToDeQueue) tb.LinkTo(_terminator);
+            }
+            catch (Exception)
+            {
+
+                throw;
+            }
+            // if all tasks are complete
+            //         set sigIsReadyToCalculateAndStore for this sig.longest to true
+            //  link the data flow for this block to the _terminator
+
+            Log.Trace("Leaving the CheckAsyncTasks method");
+        }
+
+        void onPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            // go through the list of async fetch tasks for all the individual terms that need to complete in order for this TransientBuffer to release its output buffered messages
+            // if all tasks are complete
+            //         set sigIsReadyToCalculateAndStore for this sig.longest to true
+            //  link the data flow for this block to the _terminator
+            //  attach an event handler to teh buffer's count property such that when it reaches zero, the event handler sets this TransientBuffer's status to completed
+            // todo figure out how cancellation will work
+            // ToDo figure out how faulting and exception handling will work
+            // 
+            //receivedEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+        }
+
+        // check on the async fetch tasks when a timer expires
+        // Create a timer, attach its callback to CheckAsyncTasks, setup its expiration, repeat indefinitely
+
+
+        #endregion critical section that periodicly checks on the status of the outstanding tasks that are fetching terms
+
+ * */
