@@ -67,11 +67,11 @@ namespace DatFlowExPatternsUnitTests {
         /// The is the dictionary that holds the information written by the event handlers that are reporting changes to the ResultsCOD
         /// During testing, this "stands in" for a GUI visual control that would normally receive these events
         /// </summary>
-        public ConcurrentDictionary<string, string> fetchingIndividualElementsOfTerm1CODEvents = new ConcurrentDictionary<string, string>();
+        public ConcurrentDictionary<string, string> fetchingIndividualElementsOfTerm1Events = new ConcurrentDictionary<string, string>();
         public ConcurrentDictionary<string, string> fetchingElementSetsOfTerm1Events = new ConcurrentDictionary<string, string>();
         public ConcurrentDictionary<string, string> resultsCODEvents = new ConcurrentDictionary<string, string>();
         public ConcurrentDictionary<string, string> elementSetsOfTerm1ReadyEvents = new ConcurrentDictionary<string, string>();
-        public ConcurrentDictionary<string, string> term1CODEvents = new ConcurrentDictionary<string, string>();
+        public ConcurrentDictionary<string, string> fetchedIndividualElementsOfTerm1Events = new ConcurrentDictionary<string, string>();
         #endregion
         #region Event handlers for the CODs found in the CalculateAndStoreFromInputAndAsyncTermsObservableData class
         /// <summary>
@@ -105,12 +105,12 @@ namespace DatFlowExPatternsUnitTests {
         }
 
         #region CollectionChanged Event Handlers
-        public void onTerm1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            term1CODEvents[Message("Term1", e)] = DateTime.Now.ToLongTimeString();
+        public void onFetchedIndividualElementsOfTerm1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            fetchedIndividualElementsOfTerm1Events[Message("Term1", e)] = DateTime.Now.ToLongTimeString();
         }
 
-        public void onFetchingIndividualElementsOfTerm1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
-            fetchingIndividualElementsOfTerm1CODEvents[Message("FetchingIndividualElementsOfTerm1",
+        public void onFetchingIndividualElementsOfTerm1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
+            fetchingIndividualElementsOfTerm1Events[Message("FetchingIndividualElementsOfTerm1",
                                                                  e)] = DateTime.Now.ToLongTimeString();
         }
 
@@ -138,16 +138,16 @@ namespace DatFlowExPatternsUnitTests {
 
         public void onTerm1PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            term1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+            fetchedIndividualElementsOfTerm1Events[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
 
         public void onFetchingElementSetsOfTerm1PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             fetchingElementSetsOfTerm1Events[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
-        public void onFetchingIndividualElementsOfTerm1CODPropertyChanged(object sender, PropertyChangedEventArgs e)
+        public void onFetchingIndividualElementsOfTerm1PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            fetchingIndividualElementsOfTerm1CODEvents[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
+            fetchingIndividualElementsOfTerm1Events[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
 
         public void onSigIsReadyTerm1PropertyChanged(object sender, PropertyChangedEventArgs e) {
@@ -190,8 +190,8 @@ namespace DatFlowExPatternsUnitTests {
             _fixture.m_logger.Debug("starting test");
             // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
             _fixture.resultsCODEvents.Clear();
-            // since the term1CODEvents list in the fixture is shared between tests, the list needs to be cleared
-            _fixture.term1CODEvents.Clear();
+            // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
+            _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
             // Create a Mock for the WebGet service
             var mockTerm1 = new Mock<IWebGet>();
             mockTerm1
@@ -205,9 +205,9 @@ namespace DatFlowExPatternsUnitTests {
             using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData =
                 new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
                                                                           _fixture.onResultsLevel1CODCollectionChanged,
-                                                                          _fixture.onTerm1CODCollectionChanged,
+                                                                          _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
                                                                           _fixture.onSigIsReadyTerm1CollectionChanged,
-                                                                          _fixture.onFetchingIndividualElementsOfTerm1CODCollectionChanged,
+                                                                          _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
                                                                           _fixture.onFetchingElementSetsOfTerm1CollectionChanged)) {
                 var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData,
                                                                                                                                                               mockTerm1.Object,
@@ -375,8 +375,8 @@ namespace DatFlowExPatternsUnitTests {
     //arrange
     // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
     _fixture.resultsCODEvents.Clear();
-    // since the term1CODEvents list in the fixture is shared between tests, the list needs to be cleared
-    _fixture.term1CODEvents.Clear();
+    // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
+    _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
     // Create a Mock for the WebGet service
     var mockTerm1 = new Mock<IWebGet>();
     mockTerm1
@@ -390,9 +390,9 @@ namespace DatFlowExPatternsUnitTests {
     // Create the Observable data structures and their event handlers
     using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
     _fixture.onResultsNestedCODPropertyChanged,
-    _fixture.onTerm1CODCollectionChanged,
+    _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
     _fixture.onSigIsReadyTerm1CollectionChanged,
-    _fixture.onFetchingIndividualElementsOfTerm1CODCollectionChanged)) {
+    _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged)) {
     // Create a new DataFlowEx network that combines the ParseInputStringFormattedAsJSONToInputMessage and CalculateAndStoreFromInputAndAsyncTerms networks
     var parseStringToTupleThenResultsFromInputAnd1Term = new ParseStringToTupleThenResultsFromInputAnd1Term(calculateAndStoreFromInputAndAsyncTermsObservableData,
     mockTerm1.Object,
@@ -468,8 +468,8 @@ namespace DatFlowExPatternsUnitTests {
     numInnerNotifyCollectionChanged);
     // since the fixture is shared between test, the fixture needs to be cleared
     _fixture.resultsCODEvents.Clear();
-    // since the term1CODEvents list in the fixture is shared between test, the list needs to be cleared
-    _fixture.term1CODEvents.Clear();
+    // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between test, the list needs to be cleared
+    _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
     }
     
     [Theory]
@@ -478,8 +478,8 @@ namespace DatFlowExPatternsUnitTests {
     //arrange
     // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
     _fixture.resultsCODEvents.Clear();
-    // since the term1CODEvents list in the fixture is shared between tests, the list needs to be cleared
-    _fixture.term1CODEvents.Clear();
+    // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
+    _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
     
     // Create a Mock for the WebGet service
     var mockTerm1 = new Mock<IWebGet>();
@@ -494,9 +494,9 @@ namespace DatFlowExPatternsUnitTests {
     // Create the Observable data structures and their event handlers
     using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
     _fixture.onResultsNestedCODPropertyChanged,
-    _fixture.onTerm1CODCollectionChanged,
+    _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
     _fixture.onSigIsReadyTerm1CollectionChanged,
-    _fixture.onFetchingIndividualElementsOfTerm1CODCollectionChanged)) {
+    _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged)) {
     CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions();
     // Create the new DataFlowEx network 
     var rFromJSONInputAnd1Term = new ParseJSONStringCollectionToInputMessage(calculateAndStoreFromInputAndAsyncTermsObservableData,
@@ -542,8 +542,8 @@ namespace DatFlowExPatternsUnitTests {
     // Cleanup
     // since the fixture is shared between test, the fixture needs to be cleared
     _fixture.resultsCODEvents.Clear();
-    // since the term1CODEvents list in the fixture is shared between test, the list needs to be cleared
-    _fixture.term1CODEvents.Clear();
+    // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between test, the list needs to be cleared
+    _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
     }
     
     

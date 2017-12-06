@@ -8,6 +8,7 @@ using ATAP.Utilities.Logging.Logging;
 using Gridsum.DataflowEx;
 using Newtonsoft.Json;
 using Swordfish.NET.Collections;
+using System.Collections.Concurrent;
 
 namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     /// <summary>
@@ -32,7 +33,10 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         // External http client library.
         IWebGet _webGet;
         Timer asyncFetchCheckTimer;
-        Dataflow _terminator;
+        // A thread-safe place to keep the TransientBuffers associated with each ElementSet of term1
+        ConcurrentDictionary<string, Dataflow<IInternalMessage<string>,IInternalMessage<string>>> _transientBuffersForElementSetsOfTerm1;
+        Dataflow<IInternalMessage<string>> _terminator;
+
 
         // Constructor
         public CalculateAndStoreFromInputAndAsyncTerms(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
@@ -41,30 +45,34 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
             _webGet = webGet;
             _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
+            // Create a place to store the 
+            _transientBuffersForElementSetsOfTerm1 = new ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>>();
 
             // The terminal block performs both the Compute  and the Store operations
             Log.Trace("Creating _terminator");
-            var _terminator = new ActionBlock<InternalMessage<string>>(_input => { Log.Trace("_terminator received InternalMessage");
+            _terminator = new ActionBlock<IInternalMessage<string>>(_input => { Log.Trace("_terminator received InternalMessage");
                 // do the calculation for all KeyValuePairs in terms1
                 var r1 = 0.0;
                 _input.Value.terms1.ToList()
                     .ForEach(kvp => { r1 += kvp.Value /
-                                              calculateAndStoreFromInputAndAsyncTermsObservableData.Term1COD[kvp.Key]; });
+                                              calculateAndStoreFromInputAndAsyncTermsObservableData.FetchedIndividualElementsOfTerm1[kvp.Key]; });
                 // Store the pr value
                 calculateAndStoreFromInputAndAsyncTermsObservableData.RecordR(_input.Value.k1,
                                                                               _input.Value.k2,
                                                                               Convert.ToDecimal(r1)); }).ToDataflow(calculateAndStoreFromInputAndAsyncTermsOptions);
 
+
             // this block accepts messages where isReadyToCalculate is false, and buffers them
             Log.Trace("Creating _dynamicBuffers");
             DynamicBuffers _dynamicBuffers = new DynamicBuffers(calculateAndStoreFromInputAndAsyncTermsObservableData,
                                                                 webGet,
-                                                                calculateAndStoreFromInputAndAsyncTermsOptions);
+                                                                calculateAndStoreFromInputAndAsyncTermsOptions,
+                                                                 _transientBuffersForElementSetsOfTerm1);
 
             // foreach IInputMessage<TKeyTerm1,TValueTerm1>, create an internal message that adds the terms1 signature and the bool used by the routing predicate
             // the output is k1, k2, c1, bool, and the output is routed on the bool value
             Log.Trace("Creating _accepter");
-            var _accepter = new TransformBlock<IInputMessage<string, double>, InternalMessage<string>>(_input => {
+            var _accepter = new TransformBlock<IInputMessage<string, double>, IInternalMessage<string>>(_input => {
                 // ToDo also check on the async tasks check when an upstream completion occurs
                 // ToDo need a default value for how long to wait for an async fetch to complete after an upstream completion occurs
                 // ToDo need a constructor and a property that will let a caller change the default value for how long to wait for an async fetch to complete after an upstream completion occurs
@@ -95,7 +103,8 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 bool isReadyToCalculate = ElementSetsOfTerm1Ready.ContainsKey(sig.Longest());
 
                 // Pass the message along to the next block, which will be either the _terminator, or the _dynamicBuffers
-                return new InternalMessage<string>((_input.Value.k1, _input.Value.k2, _input.Value.terms1, sig, isReadyToCalculate)); }).ToDataflow();
+                return new InternalMessage<string>((_input.Value.k1, _input.Value.k2, _input.Value.terms1, sig, isReadyToCalculate));
+            }).ToDataflow();
 
             _accepter.Name = "_accepter";
             _terminator.Name = "_terminator";
@@ -133,16 +142,18 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         public override ITargetBlock<IInputMessage<string, double>> InputBlock { get { return this._headBlock; } }
         #endregion Dataflow Input and Output blocks Accessors
         // ToDo:  make abstract and replace hard coded string with the type passed when the dataflow pattern is declared
-        public class DynamicBuffers : DataDispatcher<InternalMessage<string>, KeySignature<string>> {
+         class DynamicBuffers : DataDispatcher<IInternalMessage<string>, KeySignature<string>> {
             CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
             CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
+            ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>> _transientBuffersForElementSetsOfTerm1;
             IWebGet _webGet;
 
-            public DynamicBuffers(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(@out => @out.Value.sig) {
+            public DynamicBuffers(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions, ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>> transientBuffersForElementSetsOfTerm1) : base(@out => @out.Value.sig) {
                 Log.Trace("Constructor Starting");
                 _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
                 _webGet = webGet;
                 _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
+                _transientBuffersForElementSetsOfTerm1 = transientBuffersForElementSetsOfTerm1;
                 Log.Trace("Constructor Finished");
             }
 
@@ -162,7 +173,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             /// </summary>
             /// <param name="sig">The sig.</param>
             /// <returns>Dataflow&lt;InternalMessage&lt;System.String&gt;&gt;.</returns>
-            protected override Dataflow<InternalMessage<string>> CreateChildFlow(KeySignature<string> sig) {
+            protected override Dataflow<IInternalMessage<string>> CreateChildFlow(KeySignature<string> sig) {
                 // dynamically create a TransientBuffer buffer. The dispatchKey is based upon the value of sig
                 // pass sig to the TransientBuffer constructor, and wget, and the ObservableData class
                 // so the TransientBuffer can create the async tasks to fetch each individual term of the sig
@@ -171,12 +182,14 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 var _buffer = new TransientBuffer(sig,
                                                   _calculateAndStoreFromInputAndAsyncTermsObservableData,
                                                   WebGet,
-                                                  _calculateAndStoreFromInputAndAsyncTermsOptions);
+                                                  _calculateAndStoreFromInputAndAsyncTermsOptions
+                                                  );
                 // Store the sig._individualElements collection and this buffer into sigIsWaitingForCompletion COD
                 Log.Trace("CreateChildFlow is storing {0} in IsFetchingSigOfTerm1",
                           sig.Longest());
                 try
                 {
+                    _transientBuffersForElementSetsOfTerm1[sig.Longest()] = _buffer;
                 }
                 catch
                 {
@@ -192,9 +205,10 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             /// <summary>
             /// Transient Buffer node for a single sig
             /// </summary>
-            internal class TransientBuffer : Dataflow<InternalMessage<string>, InternalMessage<string>> {
+            internal class TransientBuffer : Dataflow<IInternalMessage<string>,IInternalMessage<string>>
+            {
                 // The TPL block that buffers the data.
-                BufferBlock<InternalMessage<string>> _buffer;
+                BufferBlock<IInternalMessage<string>> _buffer;
                 CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
                 CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
 
@@ -205,7 +219,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                     _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
 
                     Log.Trace("Creating _buffer");
-                    _buffer = new BufferBlock<InternalMessage<string>>();
+                    _buffer = new BufferBlock<IInternalMessage<string>>();
 
                     Log.Trace("Registering _buffer");
                     RegisterChild(_buffer);
@@ -255,9 +269,9 @@ value;
                     value; }
                 #endregion ObservableDataAccessors    
                 #region Dataflow Input and Output blocks Accessors
-                public override ITargetBlock<InternalMessage<string>> InputBlock { get { return this._buffer; } }
+                public override ITargetBlock<IInternalMessage<string>> InputBlock { get { return this._buffer; } }
 
-                public override ISourceBlock<InternalMessage<string>> OutputBlock { get { return this._buffer; } }
+                public override ISourceBlock<IInternalMessage<string>> OutputBlock { get { return this._buffer; } }
                 #endregion Dataflow Input and Output blocks Accessors
                 #region Configure this class to use ATAP.Utilities.Logging
                 // Internal class logger for this class
@@ -274,8 +288,8 @@ value;
             #region Configure this class to use ATAP.Utilities.Logging
             // Internal class logger for this class
             static ILog log;
-
-            static DynamicBuffers() {
+            static DynamicBuffers()
+            {
                 log = LogProvider.For<DynamicBuffers>();
             }
 
@@ -310,13 +324,13 @@ value;
                             // attach the transientBlock to the _terminator  
                             Log.Trace("attaching buffer {0} to terminator block, based on sigLongest {1}", 1, sigLongest);
                             // attach completion first
-                            //_terminator.RegisterDependency(_buffer);
+                            _terminator.RegisterDependency(TransientBuffersForElementSetsOfTerm1[sigLongest]);
                             // attach data linkage second
-                           // _buffer.LinkTo(_terminator);
+                            TransientBuffersForElementSetsOfTerm1[sigLongest].LinkTo(_terminator);
                             // put sigLongest into ElementSetsOfTerm1Ready
                             Log.Trace("sigLongest {0} is now in the ElementSetsOfTerm1Ready", sigLongest);
                             ElementSetsOfTerm1Ready[sigLongest] = default(byte);
-                            //remove this sigLongest from the FetchingElementSetsOfTerm1 => FetchingElementSetsOfTerm1COD dictionary
+                            //remove this sigLongest from the FetchingElementSetsOfTerm1 dictionary
                             FetchingElementSetsOfTerm1.Remove(sigLongest);
                             Log.Trace("sigLongest {0} has been removed from the ElementSetsOfTerm1Ready", sigLongest);
                         }
@@ -364,6 +378,8 @@ value;
         { get => this._calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready; set => this._calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready =
             value; }
         #endregion ObservableDataAccessors
+        internal ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>> TransientBuffersForElementSetsOfTerm1 { get => _transientBuffersForElementSetsOfTerm1; set => _transientBuffersForElementSetsOfTerm1 = value; }
+
         #region Configure this class to use ATAP.Utilities.Logging
         // Internal class logger for this class
         static ILog log;
@@ -504,26 +520,26 @@ value;
 
                 }
                 //
-                // await all of the tasks needed to put all of values for all the keys of terms1 into the Term1COD
+                // await all of the tasks needed to put all of values for all the keys of terms1 into the FetchedIndividualElementsOfTerm1
                 // this will create a synchronizationContext at this point
                 // when any individual task that fetches the value of term1 for any single key c finishes
                 // processing resumes here
                 // populate the Term1 COD for the single key c that just finished
-                calculateAndStoreFromInputAndAsyncTermsObservableData.Term1COD[_input.c1] =
+                calculateAndStoreFromInputAndAsyncTermsObservableData.FetchedIndividualElementsOfTerm1[_input.c1] =
                 // update the _elementSetsOfTerm1Ready for the single key c that just finished
                 _elementSetsOfTerm1Ready[_input.c1] = default;
                 // does this the single key c that just finished complete the set of c's needed to dequeue a class of messages
                 // if so, release all the messages in that queue to the output.
-                // See if all the values of the keys in this message's HR dictionary are already in _fetchingIndividualElementsOfTerm1COD
+                // See if all the values of the keys in this message's HR dictionary are already in _fetchingIndividualElementsOfTerm1
                 // and if not, create the async tasks that will populate them
-                if (!_fetchingIndividualElementsOfTerm1COD.ContainsKey(_input.c1))
+                if (!_fetchingIndividualElementsOfTerm1.ContainsKey(_input.c1))
                 {
                     //todo make this into something that returns an awaitable task
-                    _fetchingIndividualElementsOfTerm1COD[_input.c1] = default;
+                    _fetchingIndividualElementsOfTerm1[_input.c1] = default;
 
                 }
                 // populate the Term1 COD for the keys c1..cn in the dictionary HR
-                calculateAndStoreFromInputAndAsyncTermsObservableData.Term1COD[_input.c1] = 10.0;
+                calculateAndStoreFromInputAndAsyncTermsObservableData.FetchedIndividualElementsOfTerm1[_input.c1] = 10.0;
                 return _input;
             }).ToDataflow();
             */
