@@ -247,15 +247,15 @@ namespace DatFlowExPatternsUnitTests {
 
             public CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
                 var _accepterJSON = new ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
-                var _terminator = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
+                var _calculateAndStoreFromInputAndAsyncTerms = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
                                                                               webGet,
                                                                               calculateAndStoreFromInputAndAsyncTermsOptions);
                 _accepterJSON.Name = "_accepterJSON";
-                _terminator.Name = "_terminator";
+                _calculateAndStoreFromInputAndAsyncTerms.Name = "_calculateAndStoreFromInputAndAsyncTerms";
                 this.RegisterChild(_accepterJSON);
-                this.RegisterChild(_terminator);
-                _accepterJSON.LinkTo(_terminator);
-                _terminator.RegisterDependency(_accepterJSON);
+                this.RegisterChild(_calculateAndStoreFromInputAndAsyncTerms);
+                _accepterJSON.LinkTo(_calculateAndStoreFromInputAndAsyncTerms);
+                _calculateAndStoreFromInputAndAsyncTerms.RegisterDependency(_accepterJSON);
                 this._headBlock = _accepterJSON.InputBlock;
             }
 

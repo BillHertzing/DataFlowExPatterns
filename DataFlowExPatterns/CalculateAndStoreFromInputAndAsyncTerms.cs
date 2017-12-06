@@ -13,22 +13,24 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     /// <summary>
     /// This DataFlow will calculate a Result (decimal), for each input message, and store that into a ConcurrentObservableDictionary (COD) 
     ///   that was declared in the accompanying ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms project and passed into this dataflow's constructor
-    ///   The overall structure of teh graph starts with a Head block (_acceptor), and ends with a Action block that performs a calculation and stores the results (_terminator)
+    ///   The overall structure of teh graph starts with a Head block (_acceptor), and ends with a Action block that performs a calculation and stores the results (_bsolvestore)
     ///   The calculation being performed depends on Terms that are retrieved via an async fetch. 
     ///   The terms being retrieved are defined by the keys to the terms1 IReadOnlyDictionary that are part of the message
-    ///   If all of async data needed, specified by all of the keys of the terms1, has been received, the message is sent from the _acceptor to the _terminator
+    ///   If all of async data needed, specified by all of the keys of the terms1, has been received, the message is sent from the _acceptor to the _bsolvestore
     ///   Any message whose terms1 keys' async data, specified by all of the keys of the terms1, has not yet been retrieved, the message is shunted to a DataDispatcher.
     ///   If the set of all of the keys of the terms1 of the message has never before been seen by the DataDispatcher, then the DataDispatcher dynamically creates a TransientBuffer for that set of terms1 keys
-    ///   When all of the async tasks that retrieve the data for each key found in terms1 completes, all of the messages buffered in a TransientBuffer are released to the _terminator
-    ///   When all of the messages buffered in a TransientBuffer are released to the _terminator, the TransientBuffer is disposed of.
+    ///   When all of the async tasks that retrieve the data for each key found in terms1 completes, all of the messages buffered in a TransientBuffer are released to the _bsolvestore
+    ///   When all of the messages buffered in a TransientBuffer are released to the _bsolvestore, the TransientBuffer is disposed of.
     ///   ToDo: a maxtimeToWait for the async fetch task to complete, after the _acceptor receives a Complete signal, before declaring a transient block faulted. 
     /// </summary>
     public partial class CalculateAndStoreFromInputAndAsyncTerms : Dataflow<IInputMessage<string, double>> {
+        Dataflow<IInputMessage<string, double>, IInternalMessage<string>> _baccepter;
+        DynamicBuffers _bdynamicBuffers;
+        Dataflow<IInternalMessage<string>> _bsolvestore;
         CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
         CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
         // Head of this dataflow graph
         ITargetBlock<IInputMessage<string, double>> _headBlock;
-        Dataflow<IInternalMessage<string>> _terminator;
         // A thread-safe place to keep the TransientBuffers associated with each ElementSet of term1
         ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>> _transientBuffersForElementSetsOfTerm1;
         IWebGet _webGet;
@@ -46,8 +48,9 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             _transientBuffersForElementSetsOfTerm1 = new ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>>();
 
             // The terminal block performs both the Compute  and the Store operations
-            Log.Trace("Creating _terminator");
-            _terminator = new ActionBlock<IInternalMessage<string>>(_input => { Log.Trace("_terminator received InternalMessage");
+            Log.Trace("Creating _bsolvestore");
+
+            _bsolvestore = new ActionBlock<IInternalMessage<string>>(_input => { Log.Trace("_bsolvestore received InternalMessage");
                 // do the calculation for all KeyValuePairs in terms1
                 var r1 = 0.0;
                 _input.Value.terms1.ToList()
@@ -60,13 +63,13 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
 
 
             // this block accepts messages where isReadyToCalculate is false, and buffers them
-            Log.Trace("Creating _dynamicBuffers");
-            DynamicBuffers _dynamicBuffers = new DynamicBuffers(this);
+            Log.Trace("Creating _bdynamicBuffers");
+            _bdynamicBuffers = new DynamicBuffers(this);
 
             // foreach IInputMessage<TKeyTerm1,TValueTerm1>, create an internal message that adds the terms1 signature and the bool used by the routing predicate
             // the output is k1, k2, c1, bool, and the output is routed on the bool value
-            Log.Trace("Creating _accepter");
-            var _accepter = new TransformBlock<IInputMessage<string, double>, IInternalMessage<string>>(_input => {
+            Log.Trace("Creating _baccepter");
+            _baccepter = new TransformBlock<IInputMessage<string, double>, IInternalMessage<string>>(_input => {
                 // ToDo also check on the async tasks check when an upstream completion occurs
                 // ToDo need a default value for how long to wait for an async fetch to complete after an upstream completion occurs
                 // ToDo need a constructor and a property that will let a caller change the default value for how long to wait for an async fetch to complete after an upstream completion occurs
@@ -85,15 +88,16 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 // Is the sig.largest in the ElementSetsOfTerm1Ready dictionary? set the output bool accordingly
                 bool isReadyToCalculate = _calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready.ContainsKey(sig.Longest());
 
-                // Pass the message along to the next block, which will be either the _terminator, or the _dynamicBuffers
+                // Pass the message along to the next block, which will be either the _bsolvestore, or the _bdynamicBuffers
                 return new InternalMessage<string>((_input.Value.k1, _input.Value.k2, _input.Value.terms1, sig, isReadyToCalculate)); }).ToDataflow();
+
 
             #region create AsyncFetchCheckTimer and connect callback
             // Create a timer that is used to check on the async fetch tasks, the  async fetch tasks check-for-completion loop timer
             // the timer has its interval from the options passed into this constructor, it will restart and the event handler will stop the timer and start the timer each time
             // ToDo add the timer that checks on the health of the async fetch tasks check-for-completion loop every DefaultAsyncFetchTimeout interval, expecting it to provide a heartbeat, 
             // The Cleanup method will call this timers Dispose method
-            // the event handler's job is to call CheckAsyncTasks which will check for completed fetches and link the child Transient buffers to the _terminator
+            // the event handler's job is to call CheckAsyncTasks which will check for completed fetches and link the child Transient buffers to the _bsolvestore
             Log.Trace("creating and starting the AsyncFetchCheckTimer");
             AsyncFetchCheckTimer = new Timer(_calculateAndStoreFromInputAndAsyncTermsOptions.AsyncFetchTimeInterval.TotalMilliseconds);
             AsyncFetchCheckTimer.AutoReset = true;
@@ -101,33 +105,34 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             AsyncFetchCheckTimer.Elapsed += new ElapsedEventHandler(AsyncFetchCheckTimer_Elapsed);
             AsyncFetchCheckTimer.Start();
             #endregion create AsyncFetchCheckTimer and connect callback
-            _accepter.Name = "_accepter";
-            _terminator.Name = "_terminator";
-            _dynamicBuffers.Name = "_dynamicBuffers";
+            _baccepter.Name = "_baccepter";
+            _bsolvestore.Name = "_bsolvestore";
+            _bdynamicBuffers.Name = "_bdynamicBuffers";
 
             // Link the data flow
             Log.Trace("Linking dataflow between blocks");
 
-            // Link _accepter to _terminator when the InternalMessage.Value has isReadyToCalculate = true
-            _accepter.LinkTo(_terminator, m1 => m1.Value.isReadyToCalculate);
-            // Link _accepter to _dynamicBuffers when the  InternalMessage.Value has isReadyToCalculate = false
-            _accepter.LinkTo(_dynamicBuffers,
-                             m1 => !m1.Value.isReadyToCalculate);
-            // data flow linkage of the dynamically created TransientBuffer children to the _terminator is complex and handled elsewhere
+            // Link _baccepter to _bsolvestore when the InternalMessage.Value has isReadyToCalculate = true
+            _baccepter.LinkTo(_bsolvestore,
+                              m1 => m1.Value.isReadyToCalculate);
+            // Link _baccepter to _bdynamicBuffers when the  InternalMessage.Value has isReadyToCalculate = false
+            _baccepter.LinkTo(_bdynamicBuffers,
+                              m1 => !m1.Value.isReadyToCalculate);
+            // data flow linkage of the dynamically created TransientBuffer children to the _bsolvestore is complex and handled elsewhere
 
             // Link the completion tasks
             Log.Trace("Linking completion between blocks");
-            _dynamicBuffers.RegisterDependency(_accepter);
-            _terminator.RegisterDependency(_accepter);
-            // Completion linkage of the dynamically created TransientBuffer children to the _terminator is complex and handled elsewhere
+            _bdynamicBuffers.RegisterDependency(_baccepter);
+            _bsolvestore.RegisterDependency(_baccepter);
+            // Completion linkage of the dynamically created TransientBuffer children to the _bsolvestore is complex and handled elsewhere
 
             Log.Trace("Registering Children");
-            this.RegisterChild(_accepter);
-            this.RegisterChild(_terminator);
-            this.RegisterChild(_dynamicBuffers);
+            this.RegisterChild(_baccepter);
+            this.RegisterChild(_bsolvestore);
+            this.RegisterChild(_bdynamicBuffers);
 
             // set the InputBlock for this dataflow graph to be the InputBlock of the _acceptor
-            this._headBlock = _accepter.InputBlock;
+            this._headBlock = _baccepter.InputBlock;
             // ToDo: start PreparingToCalculate to pre-populate the initial list of C key signatures
             Log.Trace("Constructor Finished");
         }
@@ -164,14 +169,14 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                                                   sigLongest);
                                 // if sigLongest is finished, but not yet a key in ElementSetsOfTerm1Ready then this is the first loop where it is finally ready
                                 if(!_calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready.ContainsKey(sigLongest)) {
-                                            // attach the transientBlock to the _terminator  
-                                            Log.Trace("attaching buffer {0} to terminator block, based on sigLongest {1}",
+                                            // attach the transientBlock to the _bsolvestore  
+                                            Log.Trace("attaching buffer {0} to _bsolve block, based on sigLongest {1}",
                                                       1,
                                                       sigLongest);
                                     // attach completion first
-                                    _terminator.RegisterDependency(TransientBuffersForElementSetsOfTerm1[sigLongest]);
+                                    _bsolvestore.RegisterDependency(_transientBuffersForElementSetsOfTerm1[sigLongest]);
                                     // attach data linkage second
-                                    TransientBuffersForElementSetsOfTerm1[sigLongest].LinkTo(_terminator);
+                                    _transientBuffersForElementSetsOfTerm1[sigLongest].LinkTo(_bsolvestore);
                                     // put sigLongest into ElementSetsOfTerm1Ready
                                     Log.Trace("sigLongest {0} is now in the ElementSetsOfTerm1Ready",
                                               sigLongest);
@@ -205,9 +210,6 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             AsyncFetchCheckTimer.Dispose();
             Log.Trace("Cleanup complete");
         }
-
-        internal ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>> TransientBuffersForElementSetsOfTerm1 { get => _transientBuffersForElementSetsOfTerm1; set => _transientBuffersForElementSetsOfTerm1 =
-            value; }
 
         #region Dataflow Input and Output blocks Accessors
         public override ITargetBlock<IInputMessage<string, double>> InputBlock { get { return this._headBlock; } }
@@ -298,7 +300,10 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                     Log.Trace($"Creating an entry for FetchingElementSetsOfTerm1. Key is {sig.Longest()} data is x");
                     parent._parent._calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1[sig.Longest()] = x;
                     // If the asyncFetchCheckTimer is not enabled, enable it now.
-                    if (!parent._parent.asyncFetchCheckTimer.Enabled) parent._parent.asyncFetchCheckTimer.Enabled = true;
+                    if(!parent._parent.asyncFetchCheckTimer.Enabled) {
+                        parent._parent.asyncFetchCheckTimer.Enabled = true;
+                    }
+
                     Log.Trace("Constructor Finished");
                 }
 
