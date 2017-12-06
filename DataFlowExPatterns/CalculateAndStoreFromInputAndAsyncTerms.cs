@@ -155,42 +155,38 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             Log.Trace("Starting the CheckAsyncTasks method");
             bool unfinished;
             // iterate each individual term of the sig, and get those that are not already present in the COD FetchingIndividualElementsOfTerm1
-            _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1.Keys.ToList()
-                .ForEach(sigLongest => { unfinished = false;
-                    Log.Trace("Iterating FetchingElementSetsOfTerm1.Keys, now on {0}",
-                              sigLongest);
-                    _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1[sigLongest].Keys.ToList()
-                        .ForEach(element => { Log.Trace("Iterating FetchingElementSetsOfTerm1[{0}].Keys, now on {1}",
-                                                        sigLongest,
-                                                        element);
-                            unfinished &= _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1[element].IsCompleted;
-                            if(!unfinished) {
-                                        Log.Trace("sigLongest {0} is now finished",
-                                                  sigLongest);
-                                // if sigLongest is finished, but not yet a key in ElementSetsOfTerm1Ready then this is the first loop where it is finally ready
-                                if(!_calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready.ContainsKey(sigLongest)) {
-                                            // attach the transientBlock to the _bsolvestore  
-                                            Log.Trace("attaching buffer {0} to _bsolve block, based on sigLongest {1}",
-                                                      1,
-                                                      sigLongest);
-                                    // attach completion first
-                                    _bsolvestore.RegisterDependency(_transientBuffersForElementSetsOfTerm1[sigLongest]);
-                                    // attach data linkage second
-                                    _transientBuffersForElementSetsOfTerm1[sigLongest].LinkTo(_bsolvestore);
-                                    // put sigLongest into ElementSetsOfTerm1Ready
-                                    Log.Trace("sigLongest {0} is now in the ElementSetsOfTerm1Ready",
-                                              sigLongest);
-                                    _calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready[sigLongest] = default(byte);
-                                    //remove this sigLongest from the FetchingElementSetsOfTerm1 dictionary
-                                    _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1.Remove(sigLongest);
-                                    Log.Trace("sigLongest {0} has been removed from the ElementSetsOfTerm1Ready",
-                                              sigLongest);
-                                }
-                            }
-                            else {
-                                        Log.Trace("sigLongest {0} is still unfinished",
-                                                  sigLongest);
-                            } }); });
+            foreach(var sigLongest in _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1.Keys) {
+                unfinished = false;
+                Log.Trace($"Iterating FetchingElementSetsOfTerm1.Keys, now on {sigLongest}");
+                foreach(var element in _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1[sigLongest].Keys) {
+                    Log.Trace($"Iterating FetchingElementSetsOfTerm1[{sigLongest}].Keys, now on {element}");
+                    unfinished &= _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1[element].IsCompleted;
+                    if(!unfinished) {
+                        Log.Trace($"sigLongest {sigLongest} is now finished");
+                        // if sigLongest is finished, but not yet a key in ElementSetsOfTerm1Ready then this is the first loop where it is finally ready
+                        if(!_calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready.ContainsKey(sigLongest)) {
+                            // attach the transientBlock to the _bsolvestore  
+                            Log.Trace($"attaching buffer {_transientBuffersForElementSetsOfTerm1[sigLongest].Name} to _bsolve block, based on sigLongest {sigLongest}");
+                            // attach completion first
+                            _bsolvestore.RegisterDependency(_transientBuffersForElementSetsOfTerm1[sigLongest]);
+                            // attach data linkage second
+                            _transientBuffersForElementSetsOfTerm1[sigLongest].LinkTo(_bsolvestore);
+                            // put sigLongest into ElementSetsOfTerm1Ready
+                            Log.Trace($"sigLongest {sigLongest} is now in the ElementSetsOfTerm1Ready");
+                            _calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready[sigLongest] = default;
+                            //remove this sigLongest from the FetchingElementSetsOfTerm1 dictionary
+                            _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1.Remove(sigLongest);
+                            Log.Trace($"sigLongest {sigLongest} has been removed from the ElementSetsOfTerm1Ready");
+                        }
+                        else {
+                            Log.Trace($"sigLongest {sigLongest} is finished AND it is a key in ElementSetsOfTerm1Ready");
+                        }
+                    }
+                    else {
+                        Log.Trace($"sigLongest {sigLongest} is still unfinished");
+                    }
+                }
+            }
 
 
             Log.Trace("Leaving the CheckAsyncTasks method");
