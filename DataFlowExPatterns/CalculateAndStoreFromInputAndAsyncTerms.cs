@@ -198,7 +198,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         #endregion timer Accessors
 
         protected override void CleanUp(Exception e) {
-            Log.Trace("Starting Cleanup and calling base.Cleanup");
+            Log.Trace("Starting CalculateAndStoreFromInputAndAsyncTerms Cleanup and calling base.Cleanup");
             base.CleanUp(e);
             Log.Trace("Cleanup after base");
             // dispose of the asyncFetchCheckTimer
@@ -221,7 +221,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             }
 
             protected override void CleanUp(Exception e) {
-                Log.Trace("Starting Cleanup and calling base.Cleanup");
+                Log.Trace("Starting DynamicBuffers Cleanup and calling base.Cleanup");
                 base.CleanUp(e);
                 Log.Trace("Cleanup after base");
                 Log.Trace("Cleanup complete");
@@ -239,19 +239,18 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 var _buffer = new DynamicBuffers.TransientBuffer(sig, this);
 
                 // Store the sig._individualElements collection and this buffer into sigIsWaitingForCompletion COD
-                Log.Trace("CreateChildFlow is storing {0} in IsFetchingSigOfTerm1",
-                          sig.Longest());
+                Log.Trace($"CreateChildFlow is storing {_buffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
                 try
                 {
                     _parent._transientBuffersForElementSetsOfTerm1[sig.Longest()] = _buffer;
                 }
                 catch
                 {
-                    log.Error("error when trying to store the sig.Longest value");
-                    throw new Exception("error when trying to store the sig.Longest value");
+                    log.Error($"error when trying to store {_buffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
+                    throw new Exception($"error when trying to store {_buffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
                 }
                 // no need to call RegisterChild(_buffer) here as DataDispatcher will call automatically
-                Log.Trace("CreateChildFlow has created _buffer and is returning");
+                Log.Trace($"CreateChildFlow has created {_buffer.Name} and is returning");
                 // return the TransientBuffer
                 return _buffer;
             }
@@ -304,7 +303,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 }
 
                 protected override void CleanUp(Exception e) {
-                    Log.Trace("Starting Cleanup and calling base.Cleanup");
+                    Log.Trace("Starting TransientBuffer Cleanup and calling base.Cleanup");
                     base.CleanUp(e);
                     Log.Trace("Cleanup after base");
                     // ToDo Cleanup any messages on the transient blocks
