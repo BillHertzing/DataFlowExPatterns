@@ -163,7 +163,9 @@ namespace DatFlowExPatternsUnitTests {
         }
 
         #endregion PropertyChanged Event Handlers
-        #endregion  
+        #endregion
+
+
     }
 
     public class CalculateAndStoreFromInputAndAsyncTermsTestsBasic : IClassFixture<Fixture> {
@@ -195,20 +197,18 @@ namespace DatFlowExPatternsUnitTests {
             // Create a Mock for the WebGet service
             var mockTerm1 = new Mock<IWebGet>();
             mockTerm1
-            .Setup(webGet => webGet.AsyncWebGet<double>("A"))
-                .Callback(() => Task.Delay(new TimeSpan(0, 1, 0)))
-                .ReturnsAsync(100.0);
+            .Setup(webGet => webGet.AsyncWebGet<double>("A")).Callback(() => Task.Delay(new TimeSpan(0, 0, 4))).ReturnsAsync(100.0);
+            //.Setup(webGet => webGet.AsyncWebGet<double>("B")).Callback(() => Task.Delay(new TimeSpan(0, 0, 6))).ReturnsAsync(200.0);
 
-            IInputMessage<string, double> result = new InputMessage<string, double>(("init", "init", new Dictionary<string, double>()));
-            var action = new Action<IInputMessage<string, double>>(im => result =
-                im);
-            using(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData =
-                new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
-                                                                          _fixture.onResultsLevel1CODCollectionChanged,
-                                                                          _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
-                                                                          _fixture.onSigIsReadyTerm1CollectionChanged,
-                                                                          _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
-                                                                          _fixture.onFetchingElementSetsOfTerm1CollectionChanged)) {
+            CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
+                                                                 _fixture.onResultsLevel1CODCollectionChanged,
+                                                                 _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
+                                                                 _fixture.onSigIsReadyTerm1CollectionChanged,
+                                                                 _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
+                                                                 _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
+
+            using (calculateAndStoreFromInputAndAsyncTermsObservableData)
+            {
                 var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData,
                                                                                                                                                               mockTerm1.Object,
                                                                                                                                                               CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
@@ -216,26 +216,29 @@ namespace DatFlowExPatternsUnitTests {
                 // act
                 var sendAsyncResults = calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.SendAsync(inTestData);
                 await sendAsyncResults;
+                // wait a minute to debug
+                //await Task.Delay(new TimeSpan(0, 0, 1));
                 // inform the head of the network that there is no more data
                 calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.Complete();
                 // wait for the network to indicate completion
                 await calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.CompletionTask;
+
+                // assert
+                // send the observed events to test output
+                _fixture.resultsCODEvents.Keys.OrderBy(x => x)
+                    .ToList()
+                    .ForEach(x => output.WriteLine($"{x} : {_fixture.resultsCODEvents[x]}"));
+
+                // Count the number of inner and outer CollectionChanged events that occurred
+                var numInnerNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyNestedCollectionChanged"))
+                                                          .ToList()
+                                                          .Count;
+                var numOuterNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyOuterCollectionChanged"))
+                                                          .ToList()
+                                                          .Count;
+
+                Assert.Equal(_fixture.resultsCODEvents.Keys.Count, numOuterNotifyCollectionChanged + numInnerNotifyCollectionChanged);
             }
-            // assert
-            // send the observed events to test output
-            _fixture.resultsCODEvents.Keys.OrderBy(x => x)
-                .ToList()
-                .ForEach(x => output.WriteLine($"{x} : {_fixture.resultsCODEvents[x]}"));
-
-            // Count the number of inner and outer CollectionChanged events that occurred
-            var numInnerNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyNestedCollectionChanged"))
-                                                      .ToList()
-                                                      .Count;
-            var numOuterNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyOuterCollectionChanged"))
-                                                      .ToList()
-                                                      .Count;
-
-            Assert.NotNull(result);
         }
 
         /// <summary>
@@ -281,14 +284,14 @@ namespace DatFlowExPatternsUnitTests {
                 .Callback(() => Task.Delay(new TimeSpan(0, 1, 0)))
                 .ReturnsAsync(100.0);
 
+            CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
+                                                                 _fixture.onResultsLevel1CODCollectionChanged,
+                                                                 _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
+                                                                 _fixture.onSigIsReadyTerm1CollectionChanged,
+                                                                 _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
+                                                                 _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
 
-            using (CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData =
-                new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
-                                                                          _fixture.onResultsLevel1CODCollectionChanged,
-                                                                          _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
-                                                                          _fixture.onSigIsReadyTerm1CollectionChanged,
-                                                                          _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
-                                                                          _fixture.onFetchingElementSetsOfTerm1CollectionChanged))
+            using ( calculateAndStoreFromInputAndAsyncTermsObservableData )
             {
                 var calculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData,
                                                                                                                                                               mockTerm1.Object,
