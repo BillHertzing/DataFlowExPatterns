@@ -274,15 +274,20 @@ namespace DatFlowExPatternsUnitTests {
 
             //            CalculateAndStoreFromInputAndAsyncTermsObservableData _fixture.iSSData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
 
+            Fixture.ISSDataConcrete iSSData = new Fixture.ISSDataConcrete(_fixture.onResultsLevel0CODCollectionChanged,
+                                                             _fixture.onResultsLevel1CODCollectionChanged,
+                                                             _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
+                                                             _fixture.onSigIsReadyTerm1CollectionChanged,
+                                                             _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
+                                                             _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
 
-
-            using(_fixture.iSSData) {
+            using (iSSData) {
                 /*
                 var calculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(_fixture.iSSData,
                 _fixture.mockTerm1.Object,
                 CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
                 */
-                var calculateAndStoreFromInputAndAsyncTerms = new CalculateAndStoreFromInputAndAsyncTerms(_fixture.iSSData,
+                var calculateAndStoreFromInputAndAsyncTerms = new CalculateAndStoreFromInputAndAsyncTerms(iSSData,
                                                                                                           _fixture.mockTerm1.Object,
                                                                                                           CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
                 // act
@@ -318,14 +323,14 @@ namespace DatFlowExPatternsUnitTests {
                                                       .ToList()
                                                       .Count;
 
-            _fixture.iSSData.ResultsCOD.Keys.Count<string>()
+            iSSData.ResultsCOD.Keys.Count<string>()
                 .Should()
                 .Be(2);
-            _fixture.iSSData.ResultsCOD.Keys.Should()
+            iSSData.ResultsCOD.Keys.Should()
                 .Contain("k1");
-            _fixture.iSSData.ResultsCOD["k1"].Keys.Should()
+            iSSData.ResultsCOD["k1"].Keys.Should()
                 .Contain("k1");
-            _fixture.iSSData.ResultsCOD["k1"]["k1"].Should()
+            iSSData.ResultsCOD["k1"]["k1"].Should()
                 .Be(0.110M);
 
             Assert.Equal(_fixture.resultsCODEvents.Keys.Count,
@@ -449,10 +454,15 @@ namespace DatFlowExPatternsUnitTests {
             _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
             //        CalculateAndStoreFromInputAndAsyncTermsObservableData _fixture.iSSData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
 
+            Fixture.ISSDataConcrete iSSData = new Fixture.ISSDataConcrete(_fixture.onResultsLevel0CODCollectionChanged,
+                                                                         _fixture.onResultsLevel1CODCollectionChanged,
+                                                                         _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
+                                                                         _fixture.onSigIsReadyTerm1CollectionChanged,
+                                                                         _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
+                                                                         _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
 
-
-            using(_fixture.iSSData) {
-                var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(_fixture.iSSData,
+             using(iSSData) {
+            var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(iSSData,
                                                                                                                                                               _fixture.mockTerm1.Object,
                                                                                                                                                               CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
 
@@ -479,14 +489,14 @@ namespace DatFlowExPatternsUnitTests {
                 var numOuterNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyLevel0CollectionChanged"))
                                                           .ToList()
                                                           .Count;
-                _fixture.iSSData.ResultsCOD.Keys.Count<string>()
+                iSSData.ResultsCOD.Keys.Count<string>()
                     .Should()
                     .Be(1);
-                _fixture.iSSData.ResultsCOD.Keys.Should()
+                iSSData.ResultsCOD.Keys.Should()
                     .Contain("k1");
-                _fixture.iSSData.ResultsCOD["k1"].Keys.Should()
+                iSSData.ResultsCOD["k1"].Keys.Should()
                     .Contain("k1");
-                _fixture.iSSData.ResultsCOD["k1"]["k1"].Should()
+                iSSData.ResultsCOD["k1"]["k1"].Should()
                     .Be(0.110M);
 
                 Assert.Equal(_fixture.resultsCODEvents.Keys.Count,
