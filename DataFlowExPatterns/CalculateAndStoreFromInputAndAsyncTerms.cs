@@ -24,6 +24,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     ///   ToDo: a maxtimeToWait for the async fetch task to complete, after the _acceptor receives a Complete signal, before declaring a transient block faulted. 
     /// </summary>
     public partial class CalculateAndStoreFromInputAndAsyncTerms : Dataflow<IInputMessage<string, double>> {
+        internal static ILog Log = LogProvider.For<CalculateAndStoreFromInputAndAsyncTerms>();
         Dataflow<IInputMessage<string, double>, IInternalMessage<string>> _bAccepter;
         DynamicBuffers _bDynamicBuffers;
         Dataflow<IInternalMessage<string>> _bSolveStore;
@@ -200,6 +201,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         #endregion Dataflow Input and Output blocks Accessors
 
         class DynamicBuffers : DataDispatcher<IInternalMessage<string>, KeySignature<string>> {
+            internal static ILog Log = LogProvider.For<DynamicBuffers>();
             CalculateAndStoreFromInputAndAsyncTerms _parent;
 
             public DynamicBuffers(CalculateAndStoreFromInputAndAsyncTerms parent) : base(@out => @out.Value.sig) {
@@ -241,7 +243,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 }
                 catch
                 {
-                    log.Error($"error when trying to store {_transientBuffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
+                    Log.Error($"error when trying to store {_transientBuffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
                     throw new Exception($"error when trying to store {_transientBuffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
                 }
 
@@ -256,6 +258,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             /// Transient Buffer node for a single sig
             /// </summary>
             class TransientBuffer : Dataflow<IInternalMessage<string>, IInternalMessage<string>> {
+                internal static ILog Log = LogProvider.For<TransientBuffer>();
                 // The TPL block that buffers the data.
                 BufferBlock<IInternalMessage<string>> _buffer;
                 DynamicBuffers _parent;
@@ -313,45 +316,14 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
 
                 public override ISourceBlock<IInternalMessage<string>> OutputBlock { get { return this._buffer; } }
                 #endregion Dataflow Input and Output blocks Accessors
-                #region Configure this class to use ATAP.Utilities.Logging
-                // Internal class logger for this class
-                static ILog log;
-
-                static TransientBuffer() {
-                    log = LogProvider.For<TransientBuffer>();
-                }
-
-                internal static ILog Log { get => log; set => log = value; }
-                #endregion Configure this class to use ATAP.Utilities.Logging
             }
-
-            #region Configure this class to use ATAP.Utilities.Logging
-            // Internal class logger for this class
-            static ILog log;
-
-            static DynamicBuffers() {
-                log = LogProvider.For<DynamicBuffers>();
-            }
-
-            internal static ILog Log { get => log; set => log = value; }
-            #endregion Configure this class to use ATAP.Utilities.Logging
         }
-
-        #region Configure this class to use ATAP.Utilities.Logging
-        // Internal class logger for this class
-        static ILog log;
-
-        static CalculateAndStoreFromInputAndAsyncTerms() {
-            log = LogProvider.For<CalculateAndStoreFromInputAndAsyncTerms>();
-        }
-
-        internal static ILog Log { get => log; set => log = value; }
-        #endregion Configure this class to use ATAP.Utilities.Logging
     }
 
-    public class ParseSingleInputStringFormattedAsJSONToInputMessage : Dataflow<string, IInputMessage<string, double>> {
+    public class ParseSingleInputStringFormattedAsJSONToInputMessage : Dataflow<string, InputMessage<string, double>> {
+        internal static ILog Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONToInputMessage>();
         // Head and tail 
-        TransformBlock<string, IInputMessage<string, double>> _transformer;
+        TransformBlock<string, InputMessage<string, double>> _transformer;
 
         public ParseSingleInputStringFormattedAsJSONToInputMessage() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
         }
@@ -359,11 +331,12 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         public ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
             Log.Trace("Constructor starting");
             // create the output via a TransformBlock
-            _transformer = new TransformBlock<string, IInputMessage<string, double>>(_input => { (string k1, string k2, IReadOnlyDictionary<string, double> terms1) _temp;
+            _transformer = new TransformBlock<string, InputMessage<string, double>>(_input => {
+                InputMessage<string, double> im;
                 try
                 {
                     Log.Trace("Deserialize Starting");
-                    _temp = JsonConvert.DeserializeObject<(string k1, string k2, Dictionary<string, double> terms1)>(_input);
+                    im = JsonConvert.DeserializeObject<InputMessage<string, double>>(_input);
                     Log.Trace("Deserialize Finished");
                 }
                 catch
@@ -372,49 +345,8 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                     Log.WarnException("Exception", e, "unused");
                     throw e;
                 }
-                return new InputMessage<string, double>(_temp); });
+                return im; });
 
-            RegisterChild(_transformer);
-            Log.Trace("Constructor Finished");
-        }
-
-        public override ITargetBlock<string> InputBlock { get { return _transformer; } }
-
-        public override ISourceBlock<IInputMessage<string, double>> OutputBlock { get { return _transformer; } }
-
-        #region Configure this class to use ATAP.Utilities.Logging
-        internal static ILog Log { get; set; }
-
-        static ParseSingleInputStringFormattedAsJSONToInputMessage() {
-            Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONToInputMessage>();
-        }
-        #endregion Configure this class to use ATAP.Utilities.Logging
-    }
-
-    public class ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection : Dataflow<string, InputMessage<string, double>> {
-        // Head and tail 
-        TransformManyBlock<string, InputMessage<string, double>> _transformer;
-
-        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
-        }
-
-        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-            Log.Trace("Constructor starting");
-            // create the output via a TransformManyBlock
-            _transformer = new TransformManyBlock<string, InputMessage<string, double>>(_input => { IEnumerable<InputMessage<string, double>> _coll;
-                try
-                {
-                    Log.Trace("Deserialize Starting");
-                    _coll = JsonConvert.DeserializeObject<IEnumerable<InputMessage<string, double>>>(_input);
-                    Log.Trace("Deserialize Finished");
-                }
-                catch
-                {
-                    ArgumentException e = new ArgumentException($"{_input} does not match the needed input pattern");
-                    Log.WarnException("Exception", e, "unused");
-                    throw e;
-                }
-                return _coll; });
             RegisterChild(_transformer);
             Log.Trace("Constructor Finished");
         }
@@ -422,18 +354,53 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         public override ITargetBlock<string> InputBlock { get { return _transformer; } }
 
         public override ISourceBlock<InputMessage<string, double>> OutputBlock { get { return _transformer; } }
+    }
+    /*
+    public class ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection : Dataflow<string, IEnumerable<IInputMessage<string, double>>> {
+        internal static ILog Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection>();
+        // Head and tail 
+        TransformManyBlock<string, IEnumerable<IInputMessage<string, double>>> _transformer;
 
-        #region Configure this class to use ATAP.Utilities.Logging
-        // Internal class logger for this class
-        static ILog log;
-
-        static ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() {
-            log = LogProvider.For<ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection>();
+        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
         }
 
-        internal static ILog Log { get => log; set => log = value; }
-        #endregion Configure this class to use ATAP.Utilities.Logging
+        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+            Log.Trace("Constructor for ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection starting");
+            // create the output via a TransformManyBlock
+            _transformer = new TransformManyBlock<string, IInputMessage<string, double>>(new Func<string, IEnumerable<IInputMessage<string, double>>>(this.splitter),
+                                                                                                      calculateAndStoreFromInputAndAsyncTermsOptions.ToExecutionBlockOption())
+                .ToDataflow<string, IEnumerable<IInputMessage<string, double>>>(calculateAndStoreFromInputAndAsyncTermsOptions,
+                                                                                "_transformer");
+            RegisterChild(_transformer);
+            Log.Trace("Constructor for ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection Finished");
+        }
+
+        // Have to use a named method in order to use Yield to return an IEnumerable
+        IEnumerable<IInputMessage<string, double>> splitter(string _input) {
+            Log.Trace("Deserialize Starting");
+            IEnumerable<IInputMessage<string, double>> _imcoll;
+            try
+            {
+                _imcoll = JsonConvert.DeserializeObject<IEnumerable<IInputMessage<string, double>>>(_input);
+            }
+            catch
+            {
+                ArgumentException e = new ArgumentException($"{_input} does not match the needed input pattern");
+                Log.WarnException("Exception", e, "unused");
+                throw e;
+            }
+            Log.Trace("Deserialize Finished");
+            foreach(var im in _imcoll)
+            {
+                yield return im;
+            }
+        }
+
+        public override ITargetBlock<string> InputBlock { get { return _transformer; } }
+
+        public override ISourceBlock<IEnumerable<IInputMessage<string, double>>> OutputBlock { get { return _transformer; } }
     }
+    */
 }
 
 

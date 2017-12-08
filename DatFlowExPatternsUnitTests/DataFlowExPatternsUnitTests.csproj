@@ -23,7 +23,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="ATAP.Utilities.Logging">
+      <HintPath>..\..\ATAP.Utilities\ATAP.Utilities.Logging\bin\Debug\netstandard2.0\ATAP.Utilities.Logging.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="App.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="NLog.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="xunit.runner.json">

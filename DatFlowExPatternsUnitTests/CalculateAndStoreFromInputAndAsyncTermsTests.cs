@@ -1,15 +1,14 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms;
-using Common.Logging;
+using FluentAssertions;
 using Gridsum.DataflowEx;
 using Moq;
 using Newtonsoft.Json;
@@ -17,23 +16,30 @@ using Xunit;
 using Xunit.Abstractions;
 
 namespace DatFlowExPatternsUnitTests {
-    public static class Utils {
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static ILog GetNamespaceLogger() {
-            var frame = new StackFrame(1);
-            var callingMethod = frame.GetMethod();
-            return LogManager.GetLogger(callingMethod.DeclaringType.Namespace);
-        }
-    }
-
     public class Fixture : IDisposable {
-        #region Logger
-        public ILog m_logger = Utils.GetNamespaceLogger();
-        #endregion
         #region MOQs
         // a MOQ for the async web calls used for Term1
-        public IWebGet mockTerm1;
+        public Mock<IWebGet> mockTerm1;
         #endregion
+
+        public Fixture() {
+            mockTerm1 = new Mock<IWebGet>();
+            mockTerm1.Setup(webGet => webGet.AsyncWebGet<double>("A"))
+                .Callback(() => Task.Delay(new TimeSpan(0, 0, 1)))
+                .ReturnsAsync(100.0);
+            mockTerm1.Setup(webGet => webGet.AsyncWebGet<double>("B"))
+                .Callback(() => Task.Delay(new TimeSpan(0, 0, 1)))
+                .ReturnsAsync(200.0);
+            mockTerm1.Setup(webGet => webGet.AsyncWebGet<double>("C"))
+                .Callback(() => Task.Delay(new TimeSpan(0, 0, 1)))
+                .ReturnsAsync(300.0);
+            mockTerm1.Setup(webGet => webGet.AsyncWebGet<double>("D"))
+                .Callback(() => Task.Delay(new TimeSpan(0, 0, 1)))
+                .ReturnsAsync(400.0);
+            mockTerm1.Setup(webGet => webGet.AsyncWebGet<double>("E"))
+                .Callback(() => Task.Delay(new TimeSpan(0, 0, 1)))
+                .ReturnsAsync(50.0);
+        }
 
         public void Dispose() {
         }
@@ -45,7 +51,7 @@ namespace DatFlowExPatternsUnitTests {
                 .ToList()
                 .ForEach(x => {
                     // One nice thing about HashSets, they won't complain if you try to add a duplicate, so this ends up being the unique values from the _input
- uK1.Add(x.k1);
+                    uK1.Add(x.k1);
                     uK1K2Pair.Add(x.k1 + x.k2); });
             return new TestDataAnalysisResults((uK1, uK1K2Pair));
         }
@@ -82,7 +88,7 @@ namespace DatFlowExPatternsUnitTests {
         /// <returns>System.String.</returns>
         public string Message(string CODName, NotifyCollectionChangedEventArgs e) {
             string s = $"Ticks: {DateTime.Now.Ticks} Event: Notify{CODName}CollectionChanged  Action: {e.Action}  ";
-            switch(e.Action) {
+            switch (e.Action) {
                 case NotifyCollectionChangedAction.Add:
                     s += $"NumItemsToAdd { e.NewItems.Count}";
                     break;
@@ -111,42 +117,39 @@ namespace DatFlowExPatternsUnitTests {
 
         public void onFetchingIndividualElementsOfTerm1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
             fetchingIndividualElementsOfTerm1Events[Message("FetchingIndividualElementsOfTerm1",
-                                                                 e)] = DateTime.Now.ToLongTimeString();
+                                                            e)] = DateTime.Now.ToLongTimeString();
         }
 
         public void onFetchingElementSetsOfTerm1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
             fetchingElementSetsOfTerm1Events[Message("IsFetchingSigOfTerm1",
-                                                  e)] = DateTime.Now.ToLongTimeString();
+                                                     e)] = DateTime.Now.ToLongTimeString();
         }
 
         public void onResultsLevel0CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
             resultsCODEvents[Message("Level0", e)] = DateTime.Now.ToLongTimeString();
         }
 
-        public void onResultsLevel1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
-        {
+        public void onResultsLevel1CODCollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
             resultsCODEvents[Message("Level1", e)] = DateTime.Now.ToLongTimeString();
         }
 
         public void onSigIsReadyTerm1CollectionChanged(object sender, NotifyCollectionChangedEventArgs e) {
             elementSetsOfTerm1ReadyEvents[Message("SigIsReadyTerm1",
-                                             e)] = DateTime.Now.ToLongTimeString();
+                                                  e)] = DateTime.Now.ToLongTimeString();
         }
         #endregion CollectionChanged Event Handlers
         #region PropertyChanged Event Handlers
         //These event handlers will be attached to each innerDictionary
 
-        public void onTerm1PropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
+        public void onTerm1PropertyChanged(object sender, PropertyChangedEventArgs e) {
             fetchedIndividualElementsOfTerm1Events[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
 
-        public void onFetchingElementSetsOfTerm1PropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
+        public void onFetchingElementSetsOfTerm1PropertyChanged(object sender, PropertyChangedEventArgs e) {
             fetchingElementSetsOfTerm1Events[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
-        public void onFetchingIndividualElementsOfTerm1PropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
+
+        public void onFetchingIndividualElementsOfTerm1PropertyChanged(object sender, PropertyChangedEventArgs e) {
             fetchingIndividualElementsOfTerm1Events[$"Ticks: {DateTime.Now.Ticks} Event: PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
 
@@ -157,153 +160,80 @@ namespace DatFlowExPatternsUnitTests {
         public void onResultsLevel0CODPropertyChanged(object sender, PropertyChangedEventArgs e) {
             resultsCODEvents[$"Ticks: {DateTime.Now.Ticks} Event: Level0PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
-        public void onResultsLevel1CODPropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
+
+        public void onResultsLevel1CODPropertyChanged(object sender, PropertyChangedEventArgs e) {
             resultsCODEvents[$"Ticks: {DateTime.Now.Ticks} Event: Level1PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
-
         #endregion PropertyChanged Event Handlers
         #endregion
-
-
     }
 
     public class CalculateAndStoreFromInputAndAsyncTermsTestsBasic : IClassFixture<Fixture> {
         Fixture _fixture;
         readonly ITestOutputHelper output;
 
-        //private static Logger _logger = LogManager.GetLogger("CalculateAndStoreFromInputAndAsyncTermsTestsBasic");
+        #region Test Class Constructor
         /// <summary>
         /// ctor. Initializes a new instance of the <see cref="CalculateAndStoreFromInputAndAsyncTermsTestsBasic" /> class.
         /// 
         /// </summary>
         /// <param name="output">The output.</param>
         /// <param name="fixture">The fixture.</param>
+        /// 
         public CalculateAndStoreFromInputAndAsyncTermsTestsBasic(ITestOutputHelper output, Fixture fixture) {
             this.output = output;
-            this._fixture = fixture;
+            _fixture = fixture;
         }
-
-        #region
+        #endregion Test Class Constructor
+        #region CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest
         [Theory]
-        [InlineData("{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}")]
-        public async void CalculateAndStoreSingleInputStringFormattedAsJSONToObservableDataTest(string inTestData) {
+        //[InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}}]")]
+        //[InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}}}]")]
+        [InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}}},{\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}}},{\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}}]")]
+        public async void CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest(string inTestData) {
             // arrange
-            _fixture.m_logger.Debug("starting test");
+            // Fixture.Log.Debug("starting test CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest");
             // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
             _fixture.resultsCODEvents.Clear();
             // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
             _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
-            // Create a Mock for the WebGet service
-            var mockTerm1 = new Mock<IWebGet>();
-            mockTerm1
-            .Setup(webGet => webGet.AsyncWebGet<double>("A")).Callback(() => Task.Delay(new TimeSpan(0, 0, 4))).ReturnsAsync(100.0);
-            //.Setup(webGet => webGet.AsyncWebGet<double>("B")).Callback(() => Task.Delay(new TimeSpan(0, 0, 6))).ReturnsAsync(200.0);
+            IEnumerable<IInputMessage<string, double>> _imcoll;
 
             CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
-                                                                 _fixture.onResultsLevel1CODCollectionChanged,
-                                                                 _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
-                                                                 _fixture.onSigIsReadyTerm1CollectionChanged,
-                                                                 _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
-                                                                 _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
+                                                                                                                                                                                    _fixture.onResultsLevel1CODCollectionChanged,
+                                                                                                                                                                                    _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
+                                                                                                                                                                                    _fixture.onSigIsReadyTerm1CollectionChanged,
+                                                                                                                                                                                    _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
+                                                                                                                                                                                    _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
 
-            using (calculateAndStoreFromInputAndAsyncTermsObservableData)
-            {
-                var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData,
-                                                                                                                                                              mockTerm1.Object,
-                                                                                                                                                              CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
-
-                // act
-                var sendAsyncResults = calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.SendAsync(inTestData);
-                await sendAsyncResults;
-                // wait a minute to debug
-                //await Task.Delay(new TimeSpan(0, 0, 1));
-                // inform the head of the network that there is no more data
-                calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.Complete();
-                // wait for the network to indicate completion
-                await calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.CompletionTask;
-
-                // assert
-                // send the observed events to test output
-                _fixture.resultsCODEvents.Keys.OrderBy(x => x)
-                    .ToList()
-                    .ForEach(x => output.WriteLine($"{x} : {_fixture.resultsCODEvents[x]}"));
-
-                // Count the number of inner and outer CollectionChanged events that occurred
-                var numInnerNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyNestedCollectionChanged"))
-                                                          .ToList()
-                                                          .Count;
-                var numOuterNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyOuterCollectionChanged"))
-                                                          .ToList()
-                                                          .Count;
-
-                Assert.Equal(_fixture.resultsCODEvents.Keys.Count, numOuterNotifyCollectionChanged + numInnerNotifyCollectionChanged);
-            }
-        }
-
-        /// <summary>
-        /// Class CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData.
-        /// </summary>
-        /// <seealso cref="Gridsum.DataflowEx.Dataflow{System.String}" />
-        public class CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData : Dataflow<string> {
-            ITargetBlock<string> _headBlock;
-
-            public CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-                var _accepterJSON = new ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
-                var _calculateAndStoreFromInputAndAsyncTerms = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
-                                                                              webGet,
-                                                                              calculateAndStoreFromInputAndAsyncTermsOptions);
-                _accepterJSON.Name = "_accepter";
-                _calculateAndStoreFromInputAndAsyncTerms.Name = "_terminator";
-                this.RegisterChild(_accepterJSON);
-                this.RegisterChild(_calculateAndStoreFromInputAndAsyncTerms);
-                _accepterJSON.LinkTo(_calculateAndStoreFromInputAndAsyncTerms);
-                _calculateAndStoreFromInputAndAsyncTerms.RegisterDependency(_accepterJSON);
-                this._headBlock = _accepterJSON.InputBlock;
-            }
-
-            public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
-        }
-        #endregion
-
-        #region
-        [Theory]
-        [InlineData("[{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}},{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}},{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}},{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}},{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}},{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}},{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}]")]
-        public async void CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest(string inTestData)
-        {
-            // arrange
-            _fixture.m_logger.Debug("starting test");
-            // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
-            _fixture.resultsCODEvents.Clear();
-            // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
-            _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
-            // Create a Mock for the WebGet service
-            var mockTerm1 = new Mock<IWebGet>();
-            mockTerm1
-            .Setup(webGet => webGet.AsyncWebGet<double>("A"))
-                .Callback(() => Task.Delay(new TimeSpan(0, 1, 0)))
-                .ReturnsAsync(100.0);
-
-            CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
-                                                                 _fixture.onResultsLevel1CODCollectionChanged,
-                                                                 _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
-                                                                 _fixture.onSigIsReadyTerm1CollectionChanged,
-                                                                 _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
-                                                                 _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
-
-            using ( calculateAndStoreFromInputAndAsyncTermsObservableData )
-            {
+            using (calculateAndStoreFromInputAndAsyncTermsObservableData) {
+                /*
                 var calculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData,
-                                                                                                                                                              mockTerm1.Object,
-                                                                                                                                                              CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
-
+                                                                                                                                                                                  _fixture.mockTerm1.Object,
+                                                                                                                                                                                  CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+                */
+                var calculateAndStoreFromInputAndAsyncTerms = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
+                                                                              _fixture.mockTerm1.Object,
+                                                                                                                                                                                  CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
                 // act
-                var sendAsyncResults = calculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData.InputBlock.SendAsync(inTestData);
-                await sendAsyncResults;
+                try
+                {
+                    _imcoll = JsonConvert.DeserializeObject<InputMessage<string, double>[]>(inTestData);
+                }
+                catch
+                {
+                    ArgumentException e = new ArgumentException($"{inTestData} does not match the needed input pattern");
+                    throw e;
+                }
+                foreach (var im in _imcoll)
+                {
+                    var sendAsyncResults = calculateAndStoreFromInputAndAsyncTerms.InputBlock.SendAsync<IInputMessage<string, double>>(im);
+                    await sendAsyncResults;
+                }
                 // inform the head of the network that there is no more data
-                calculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData.InputBlock.Complete();
+                calculateAndStoreFromInputAndAsyncTerms.InputBlock.Complete();
                 // wait for the network to indicate completion
-                await calculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData.CompletionTask;
+                await calculateAndStoreFromInputAndAsyncTerms.CompletionTask;
             }
             // assert
             // send the observed events to test output
@@ -312,145 +242,265 @@ namespace DatFlowExPatternsUnitTests {
                 .ForEach(x => output.WriteLine($"{x} : {_fixture.resultsCODEvents[x]}"));
 
             // Count the number of inner and outer CollectionChanged events that occurred
-            var numInnerNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyNestedCollectionChanged"))
+            var numInnerNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyLevel1CollectionChanged"))
                                                       .ToList()
                                                       .Count;
-            var numOuterNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyOuterCollectionChanged"))
+            var numOuterNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyLevel0CollectionChanged"))
                                                       .ToList()
                                                       .Count;
 
-            Assert.Equal(_fixture.resultsCODEvents.Keys.Count, numOuterNotifyCollectionChanged + numInnerNotifyCollectionChanged);
+            calculateAndStoreFromInputAndAsyncTermsObservableData.ResultsCOD.Keys.Count<string>()
+                .Should()
+                .Be(2);
+            calculateAndStoreFromInputAndAsyncTermsObservableData.ResultsCOD.Keys.Should()
+                .Contain("k1");
+            calculateAndStoreFromInputAndAsyncTermsObservableData.ResultsCOD["k1"].Keys.Should()
+                .Contain("k1");
+            calculateAndStoreFromInputAndAsyncTermsObservableData.ResultsCOD["k1"]["k1"].Should()
+                .Be(0.110M);
+
+            Assert.Equal(_fixture.resultsCODEvents.Keys.Count,
+                         numOuterNotifyCollectionChanged +
+                numInnerNotifyCollectionChanged);
         }
-
-        /// <summary>
-        /// Class CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData.
-        /// </summary>
-        /// <seealso cref="Gridsum.DataflowEx.Dataflow{System.String}" />
-        public class CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData : Dataflow<string>
-        {
-            ITargetBlock<string> _headBlock;
-
-            public CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions)
-            {
-                var _accepter = new ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
-                var _terminator = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
-                                                                              webGet,
-                                                                              calculateAndStoreFromInputAndAsyncTermsOptions);
-                _accepter.Name = "_accepter";
-                _terminator.Name = "_terminator";
-                this.RegisterChild(_accepter);
-                this.RegisterChild(_terminator);
-                _accepter.LinkTo(_terminator);
-                _terminator.RegisterDependency(_accepter);
-                this._headBlock = _accepter.InputBlock;
-            }
-
-            public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
-        }
-        #endregion
-
-        #region
-        public class ParseSingleInputStringFormattedAsJSONCollectionToAction : Dataflow<string> {
-            ITargetBlock<string> _headBlock;
-
-            public ParseSingleInputStringFormattedAsJSONCollectionToAction(Action<InputMessage<string, double>> action) : base(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
-                var _accepterJSON = new ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
-                var _terminator = DataflowUtils.FromDelegate<InputMessage<string, double>>(action);
-                _accepterJSON.Name = "_accepter";
-                _terminator.Name = "_terminator";
-                this.RegisterChild(_accepterJSON);
-                this.RegisterChild(_terminator);
-                _accepterJSON.LinkTo(_terminator);
-                _terminator.RegisterDependency(_accepterJSON);
-                this._headBlock = _accepterJSON.InputBlock;
-            }
-
-            public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
-        }
-
-        [Theory]
-        [InlineData("[{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}},{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}},{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}},{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}},{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}},{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}},{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}]")]
-        public async void ParseSingleInputStringFormattedAsJSONCollectionToInputMessageTest(string inTestData) {
-            // arrange
-            List<InputMessage<string, double>> result = new List<InputMessage<string, double>>();
-            var action = new Action<InputMessage<string, double>>(im => result.Add(im));
-            var parseSingleInputStringFormattedAsJSONCollectionToAction = new ParseSingleInputStringFormattedAsJSONCollectionToAction(action);
-
-            // act
-            var sendAsyncResults = parseSingleInputStringFormattedAsJSONCollectionToAction.InputBlock.SendAsync(inTestData);
-            await sendAsyncResults;
-            // inform the head of the network that there is no more data
-            parseSingleInputStringFormattedAsJSONCollectionToAction.InputBlock.Complete();
-            // wait for the network to indicate completion
-            await parseSingleInputStringFormattedAsJSONCollectionToAction.CompletionTask;
-
-            // assert
-            Assert.NotNull(result);
-        }
-        #endregion
-        #region
-        // Ensure that the dataflow ParseSingleInputStringFormattedAsJSONToInputMessage will take in a string and put out an InputMessage
-        public class ParseSingleInputStringFormattedAsJSONToAction : Dataflow<string> {
-            ITargetBlock<string> _headBlock;
-
-            public ParseSingleInputStringFormattedAsJSONToAction(Action<IInputMessage<string, double>> action) : this(action,
-                                                                                                                      CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
-            }
-
-            public ParseSingleInputStringFormattedAsJSONToAction(Action<IInputMessage<string, double>> action, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-                var _accepterJSON = new ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
-                var _terminator = DataflowUtils.FromDelegate<IInputMessage<string, double>>(action);
-                _accepterJSON.Name = "_accepter";
-                _terminator.Name = "_terminator";
-                this.RegisterChild(_accepterJSON);
-                this.RegisterChild(_terminator);
-                _accepterJSON.LinkTo(_terminator);
-                _terminator.RegisterDependency(_accepterJSON);
-                this._headBlock = _accepterJSON.InputBlock;
-            }
-
-            public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
-        }
-
-        [Theory]
-        [InlineData("{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}")]
-        public async void ParseSingleInputStringFormattedAsJSONToInputMessageTest(string inTestData) {
-            // arrange
-            // arrange
-            //_fixture.m_logger.Debug("starting test");
-            IInputMessage<string, double> result = new InputMessage<string, double>(("init", "init", new Dictionary<string, double>()));
-            var action = new Action<IInputMessage<string, double>>(im => result =
-                im);
-            var parseSingleInputStringFormattedAsJSONToAction = new ParseSingleInputStringFormattedAsJSONToAction(action,
-                                                                                                                  CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
-
-            // act
-            var sendAsyncResults = parseSingleInputStringFormattedAsJSONToAction.InputBlock.SendAsync(inTestData);
-            await sendAsyncResults;
-            // inform the head of the network that there is no more data
-            parseSingleInputStringFormattedAsJSONToAction.InputBlock.Complete();
-            // wait for the network to indicate completion
-            await parseSingleInputStringFormattedAsJSONToAction.CompletionTask;
-
-            // assert
-            Assert.NotNull(result);
-        }
-        #endregion
+    
+    #endregion CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest
+    #region ParseSingleInputStringFormattedAsJSONCollectionToInputMessageTest
+    [Theory]
+    //[InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}}]")]
+    //[InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}}}]")]
+    [InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}}},{\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}}},{\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}}]")]
+    public async void ParseSingleInputStringFormattedAsJSONCollectionToInputMessageTest(string inTestData) {
+        // arrange
+        List<InputMessage<string, double>> result = new List<InputMessage<string, double>>();
         /*
-        // sendAsyncResults has returned
-        switch (sendAsyncResults.Status)
+        var action = new Action<IEnumerable<IInputMessage<string, double>>>(im => result.AddRange(im));
+        var parseSingleInputStringFormattedAsJSONCollectionToAction = new ParseSingleInputStringFormattedAsJSONCollectionToAction(action);
+        */
+        //IEnumerable<InputMessage<string, double>> _imcoll;
+        InputMessage<string, double>[] _imcoll;
+
+        // act
+        try
         {
-        case TaskStatus.Canceled:
-        break;
-        case TaskStatus.Faulted:
-        break;
-        case TaskStatus.RanToCompletion:
-        break;
-        default:
-        throw new Exception("ToDo make this better exception handling");
+            // _imcoll = JsonConvert.DeserializeObject<IEnumerable<InputMessage<string, double>>>(inTestData);
+            _imcoll = JsonConvert.DeserializeObject<InputMessage<string, double>[]>(inTestData);
+        }
+        catch
+        {
+            ArgumentException e = new ArgumentException($"{inTestData} does not match the needed input pattern");
+            throw e;
+        }
+        foreach (var im in _imcoll) {
+            result.Add(im);
+        }
+        /*
+                    // inform the head of the network that there is no more data
+                    parseSingleInputStringFormattedAsJSONCollectionToAction.InputBlock.Complete();
+                    // wait for the network to indicate completion
+                    await parseSingleInputStringFormattedAsJSONCollectionToAction.CompletionTask;
+        */
+        // assert
+
+        result.Should()
+            .HaveCount(7);
+        result[0].Should()
+            .BeOfType(typeof(InputMessage<string, double>));
+        result[0].Value.k1.Should()
+            .Be("k1");
+    }
+    #endregion ParseSingleInputStringFormattedAsJSONCollectionToInputMessageTest
+    #region ParseSingleInputStringFormattedAsJSONToInputMessageTest
+    // Ensure that the dataflow ParseSingleInputStringFormattedAsJSONToInputMessage will take in a string and put out an InputMessage
+
+    [Theory]
+    [InlineData("{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}}")]
+    public async void ParseSingleInputStringFormattedAsJSONToInputMessageTest(string inTestData) {
+        // arrange
+        // arrange
+        //_fixture.m_logger.Debug("starting test");
+        InputMessage<string, double> result = default;
+        var action = new Action<InputMessage<string, double>>(im => result =
+            im);
+        var parseSingleInputStringFormattedAsJSONToInputMessage = new ParseSingleInputStringFormattedAsJSONToInputMessage(action,
+                                                                                                                          CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
+
+        // act
+        var sendAsyncResults = parseSingleInputStringFormattedAsJSONToInputMessage.InputBlock.SendAsync(inTestData);
+        await sendAsyncResults;
+        // inform the head of the network that there is no more data
+        parseSingleInputStringFormattedAsJSONToInputMessage.InputBlock.Complete();
+        // wait for the network to indicate completion
+        await parseSingleInputStringFormattedAsJSONToInputMessage.CompletionTask;
+
+        // assert
+        result.Should()
+            .BeOfType(typeof(InputMessage<string, double>));
+        result.Value.k1.Should()
+            .Be("k1");
+        result.Value.k2.Should()
+            .Be("k1");
+        result.Value.terms1.Should()
+            .BeOfType(typeof(ReadOnlyDictionary<string, double>));
+        result.Value.terms1.Keys.Count<string>()
+            .Should()
+            .Be(1);
+        result.Value.terms1.Keys.Should()
+            .Contain("A");
+        result.Value.terms1.Values.Should()
+            .Contain(11.0);
+    }
+
+    public class ParseSingleInputStringFormattedAsJSONToInputMessage : Dataflow<string> {
+        ITargetBlock<string> _headBlock;
+
+        public ParseSingleInputStringFormattedAsJSONToInputMessage(Action<InputMessage<string, double>> action, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+            var _bAccepter = new ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms.ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+            var _bTerminator = DataflowUtils.FromDelegate<InputMessage<string, double>>(action);
+            _bAccepter.Name = "_bAccepter";
+            _bTerminator.Name = "_bTerminator";
+            this.RegisterChild(_bAccepter);
+            this.RegisterChild(_bTerminator);
+            _bAccepter.LinkTo(_bTerminator);
+            _bTerminator.RegisterDependency(_bAccepter);
+            this._headBlock = _bAccepter.InputBlock;
         }
 
-        */
+        public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
+    }
+    #endregion ParseSingleInputStringFormattedAsJSONToInputMessageTest
+    #region CalculateAndStoreSingleInputStringFormattedAsJSONToObservableDataTest
+    [Theory]
+    [InlineData("{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}}")]
+    public async void CalculateAndStoreSingleInputStringFormattedAsJSONToObservableDataTest(string inTestData) {
+        // arrange
+        //Fixture.Log.Debug("starting test");
+        // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
+        _fixture.resultsCODEvents.Clear();
+        // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
+        _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
+
+        CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
+                                                                                                                                                                                _fixture.onResultsLevel1CODCollectionChanged,
+                                                                                                                                                                                _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
+                                                                                                                                                                                _fixture.onSigIsReadyTerm1CollectionChanged,
+                                                                                                                                                                                _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged,
+                                                                                                                                                                                _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
+
+        using (calculateAndStoreFromInputAndAsyncTermsObservableData) {
+            var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(calculateAndStoreFromInputAndAsyncTermsObservableData,
+                                                                                                                                                          _fixture.mockTerm1.Object,
+                                                                                                                                                          CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+
+            // act
+            var sendAsyncResults = calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.SendAsync(inTestData);
+            await sendAsyncResults;
+            // wait a minute to debug
+            //await Task.Delay(new TimeSpan(0, 0, 1));
+            // inform the head of the network that there is no more data
+            calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.Complete();
+            // wait for the network to indicate completion
+            await calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.CompletionTask;
+
+            // assert
+            // send the observed events to test output
+            _fixture.resultsCODEvents.Keys.OrderBy(x => x)
+                .ToList()
+                .ForEach(x => output.WriteLine($"{x} : {_fixture.resultsCODEvents[x]}"));
+
+            // Count the number of inner and outer CollectionChanged events that occurred
+            var numInnerNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyLevel1CollectionChanged"))
+                                                      .ToList()
+                                                      .Count;
+            var numOuterNotifyCollectionChanged = _fixture.resultsCODEvents.Keys.Where(x => x.Contains("Event: NotifyLevel0CollectionChanged"))
+                                                      .ToList()
+                                                      .Count;
+            calculateAndStoreFromInputAndAsyncTermsObservableData.ResultsCOD.Keys.Count<string>()
+                .Should()
+                .Be(1);
+            calculateAndStoreFromInputAndAsyncTermsObservableData.ResultsCOD.Keys.Should()
+                .Contain("k1");
+            calculateAndStoreFromInputAndAsyncTermsObservableData.ResultsCOD["k1"].Keys.Should()
+                .Contain("k1");
+            calculateAndStoreFromInputAndAsyncTermsObservableData.ResultsCOD["k1"]["k1"].Should()
+                .Be(0.110M);
+
+            Assert.Equal(_fixture.resultsCODEvents.Keys.Count,
+                         numOuterNotifyCollectionChanged +
+                numInnerNotifyCollectionChanged);
+        }
+    }
+
+    public class CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData : Dataflow<string> {
+        ITargetBlock<string> _headBlock;
+
+        public CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+            var _bAccepter = new ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms.ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
+            var _calculateAndStoreFromInputAndAsyncTerms = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
+                                                                                                       webGet,
+                                                                                                       calculateAndStoreFromInputAndAsyncTermsOptions);
+            _bAccepter.Name = "_bAccepter";
+            _calculateAndStoreFromInputAndAsyncTerms.Name = "_bTerminator";
+            this.RegisterChild(_bAccepter);
+            this.RegisterChild(_calculateAndStoreFromInputAndAsyncTerms);
+            _bAccepter.LinkTo(_calculateAndStoreFromInputAndAsyncTerms);
+            _calculateAndStoreFromInputAndAsyncTerms.RegisterDependency(_bAccepter);
+            this._headBlock = _bAccepter.InputBlock;
+        }
+
+        public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
+    }
+    #endregion CalculateAndStoreSingleInputStringFormattedAsJSONToObservableDataTest
+    /*
+    public class ParseSingleInputStringFormattedAsJSONCollectionToAction : Dataflow<string>
+    {
+        ITargetBlock<string> _headBlock;
+
+        public ParseSingleInputStringFormattedAsJSONCollectionToAction(Action<IEnumerable<IInputMessage<string, double>>> action) : base(CalculateAndStoreFromInputAndAsyncTermsOptions.Default)
+        {
+            var _bAccepter = new ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+            var _bTerminator = DataflowUtils.FromDelegate<IEnumerable<IInputMessage<string, double>>>(action);
+            _bAccepter.Name = "_bAccepter";
+            _bTerminator.Name = "_bTerminator";
+            this.RegisterChild(_bAccepter);
+            this.RegisterChild(_bTerminator);
+            _bAccepter.LinkTo(_bTerminator);
+            _bTerminator.RegisterDependency(_bAccepter);
+            this._headBlock = _bAccepter.InputBlock;
+        }
+
+        public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
+    }
+
+    /// <summary>
+    /// Class CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData.
+    /// </summary>
+    /// <seealso cref="Gridsum.DataflowEx.Dataflow{System.String}" />
+    public class CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData : Dataflow<string>
+    {
+        ITargetBlock<string> _headBlock;
+
+        public CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions)
+        {
+            var _bAccepter = new ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+            var _bTerminator = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
+                                                                          webGet,
+                                                                          calculateAndStoreFromInputAndAsyncTermsOptions);
+
+            _bAccepter.Name = "_bAccepter";
+            _bTerminator.Name = "_bTerminator";
+            this.RegisterChild(_bAccepter);
+            this.RegisterChild(_bTerminator);
+            _bAccepter.LinkTo(_bTerminator);
+            _bTerminator.RegisterDependency(_bAccepter);
+
+            // Need a propagator block between the input collection and the CalculateAndStoreFromInputAndAsyncTerms to do the iterating.
+            this._headBlock = _bAccepter.InputBlock;
+        }
+
+        public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
+    }
+    */
     /*
     [Theory]
     [InlineData("{\"k1\",\"k2\",{\"c1\":10.0,\"c2\":20.0}}")]
@@ -464,12 +514,7 @@ namespace DatFlowExPatternsUnitTests {
     _fixture.resultsCODEvents.Clear();
     // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
     _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
-    // Create a Mock for the WebGet service
-    var mockTerm1 = new Mock<IWebGet>();
-    mockTerm1
-    .Setup(webGet => webGet.GetHRAsync("c1"))
-    .Callback(() => Task.Delay(new TimeSpan(0, 1, 0)))
-    .ReturnsAsync(100.0);
+    
     
     //act
     // log start
@@ -482,7 +527,7 @@ namespace DatFlowExPatternsUnitTests {
     _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged)) {
     // Create a new DataFlowEx network that combines the ParseInputStringFormattedAsJSONToInputMessage and CalculateAndStoreFromInputAndAsyncTerms networks
     var parseStringToTupleThenResultsFromInputAnd1Term = new ParseStringToTupleThenResultsFromInputAnd1Term(calculateAndStoreFromInputAndAsyncTermsObservableData,
-    mockTerm1.Object,
+    _fixture.mockTerm1.Object,
     CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
     
     // Split the testInStr string on the ;, and send each substring into the head of the pipeline
@@ -560,22 +605,13 @@ namespace DatFlowExPatternsUnitTests {
     }
     
     [Theory]
-    [InlineData("[{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}},{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}},{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}},{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}},{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}},{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}},{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}]")]
+    [InlineData("[\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}},\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}},\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}},\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}},\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}},\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}},\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}]")]
     public async void RFromJSONInputAnd1TermTest1(string testInStr) {
     //arrange
     // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
     _fixture.resultsCODEvents.Clear();
     // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
     _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
-    
-    // Create a Mock for the WebGet service
-    var mockTerm1 = new Mock<IWebGet>();
-    mockTerm1
-    .Setup(webGet => webGet.GetHRAsync("2"))
-    .Callback(() => Task.Delay(new TimeSpan(0, 1, 0)))
-    .ReturnsAsync(100.0);
-    // log start
-    // _logger.Debug("Logging");
     
     // act
     // Create the Observable data structures and their event handlers
@@ -587,7 +623,7 @@ namespace DatFlowExPatternsUnitTests {
     CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions();
     // Create the new DataFlowEx network 
     var rFromJSONInputAnd1Term = new ParseJSONStringCollectionToInputMessage(calculateAndStoreFromInputAndAsyncTermsObservableData,
-    mockTerm1.Object,
+    _fixture.mockTerm1.Object,
     calculateAndStoreFromInputAndAsyncTermsOptions);
     // Send the test data to the network
     var task = rFromJSONInputAnd1Term.InputBlock.SendAsync(testInStr);
@@ -641,30 +677,31 @@ namespace DatFlowExPatternsUnitTests {
     // Constructor
     public ParseStringToTupleThenResultsFromInputAnd1Term(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
     // Create the DataFlowEx network that accepts a long string (test data) and breaks it into individual inputs for the following network
-    var _accepter = new ParseInputStringFormattedAsJSONToInputMessage();
+    var _bAccepter = new ParseInputStringFormattedAsJSONToInputMessage();
     // Create the DataFlowEx network that calculates a Results COD from a formula and a term
     // The instance calculateAndStoreFromInputAndAsyncTermsObservableData supplies the Results COD and the term1 COD
-    CalculateAndStoreFromInputAndAsyncTerms _terminator = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
+    CalculateAndStoreFromInputAndAsyncTerms _bTerminator = new CalculateAndStoreFromInputAndAsyncTerms(calculateAndStoreFromInputAndAsyncTermsObservableData,
     webGet,
     calculateAndStoreFromInputAndAsyncTermsOptions);
     
-    _accepter.Name = "_accepter";
-    _terminator.Name = "_terminator";
+    _bAccepter.Name = "_bAccepter";
+    _bTerminator.Name = "_bTerminator";
     
     // Link Dataflow 
-    // Link _accepter to _terminator when the message has isReadyToCalculate = true
-    _accepter.LinkTo(_terminator);
+    // Link _bAccepter to _bTerminator when the message has isReadyToCalculate = true
+    _bAccepter.LinkTo(_bTerminator);
     
     // Link completion
-    _terminator.RegisterDependency(_accepter);
+    _bTerminator.RegisterDependency(_bAccepter);
     
-    this.RegisterChild(_accepter);
-    this.RegisterChild(_terminator);
+    this.RegisterChild(_bAccepter);
+    this.RegisterChild(_bTerminator);
     
-    this._headBlock = _accepter.InputBlock;
+    this._headBlock = _bAccepter.InputBlock;
     }
     
     public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
     }
-    */    }
+    */
+}
 }
