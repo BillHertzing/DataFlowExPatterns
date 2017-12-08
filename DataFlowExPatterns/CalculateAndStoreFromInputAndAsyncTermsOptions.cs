@@ -82,7 +82,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
         /// <summary>
         /// A predefined default setting for DataflowOptions
         /// </summary>
-        public static CalculateAndStoreFromInputAndAsyncTermsOptions Default
+        public new static CalculateAndStoreFromInputAndAsyncTermsOptions Default
         {
             get
             {
@@ -112,7 +112,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
         /// <summary>
         /// A predefined verbose setting for DataflowOptions
         /// </summary>
-        public static CalculateAndStoreFromInputAndAsyncTermsOptions Verbose
+        public new static CalculateAndStoreFromInputAndAsyncTermsOptions Verbose
         {
             get
             {

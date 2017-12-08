@@ -28,7 +28,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         Dataflow<IInputMessage<string, double>, IInternalMessage<string>> _bAccepter;
         DynamicBuffers _bDynamicBuffers;
         Dataflow<IInternalMessage<string>> _bSolveStore;
-        CalculateAndStoreFromInputAndAsyncTermsObservableData _calculateAndStoreFromInputAndAsyncTermsObservableData;
+        CalculateAndStoreFromInputAndAsyncTermsObservableData<decimal> _calculateAndStoreFromInputAndAsyncTermsObservableData;
         CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
         // Head of this dataflow graph
         ITargetBlock<IInputMessage<string, double>> _headBlock;
@@ -39,7 +39,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         Timer asyncFetchCheckTimer;
 
         // Constructor
-        public CalculateAndStoreFromInputAndAsyncTerms(CalculateAndStoreFromInputAndAsyncTermsObservableData calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+        public CalculateAndStoreFromInputAndAsyncTerms(CalculateAndStoreFromInputAndAsyncTermsObservableData<decimal> calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
             Log.Trace("Constructor starting");
 
             _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
