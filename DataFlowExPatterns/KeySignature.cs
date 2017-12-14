@@ -1,44 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
-namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
+namespace ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms
 {
-    public partial class CalculateAndStoreFromInputAndAsyncTerms
+    public abstract partial class SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult>
     {
         public class KeySignature<T> {
-            static string defaultSignatureDelimiter = ",";
-            IEnumerable<T> _individualElements;
-            string _longest;
-            Func<IEnumerable<T>, string> _longestKeySignatureFunction;
-            string _signatureDelimiter;
+            readonly IEnumerable<T> _individualElements;
+            readonly ImmutableHashSet<T> _sigHashSet;
 
-            public KeySignature(IEnumerable<T> inputCollection) : this(inputCollection,
-                                                                       defaultSignatureDelimiter,
-                                                                       defaultLongestKeySignatureFunction) {
-            }
-
-            public KeySignature(IEnumerable<T> inputCollection, string signatureDelimiter, Func<IEnumerable<T>, string> longestKeySignatureFunction) {
-                _signatureDelimiter = signatureDelimiter;
-                _longestKeySignatureFunction = longestKeySignatureFunction;
+            public KeySignature(IEnumerable<T> inputCollection)  {
                 _individualElements = inputCollection;
-                _longest = _longestKeySignatureFunction(inputCollection);
+                _sigHashSet = ImmutableHashSet.Create<T>().Union(inputCollection);
             }
-
-            static string defaultLongestKeySignatureFunction(IEnumerable<T> _inputCollection) {
-                return _inputCollection.OrderBy(x => x)
-                           .Aggregate(new StringBuilder(),
-                                      (current, next) => current.Append(defaultSignatureDelimiter)
-                                                             .Append(next.ToString()))
-                           .ToString();
-            }
-
-            public string Longest() {
-                return _longest;
-            }
-
             public IEnumerable<T> IndividualElements { get => _individualElements; }
+            ImmutableHashSet<T> SigHashSet { get => _sigHashSet; }
         }
     }
 }

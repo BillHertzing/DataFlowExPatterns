@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms;
+using ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms;
 using FluentAssertions;
 using Gridsum.DataflowEx;
 using Moq;
@@ -87,7 +88,7 @@ namespace DatFlowExPatternsUnitTests {
         public ConcurrentDictionary<string, string> elementSetsOfTerm1ReadyEvents = new ConcurrentDictionary<string, string>();
         public ConcurrentDictionary<string, string> fetchedIndividualElementsOfTerm1Events = new ConcurrentDictionary<string, string>();
         #endregion
-        #region Event handlers for the CODs found in the CalculateAndStoreFromInputAndAsyncTermsObservableData class
+        #region Event handlers for the CODs found in the SolveAndStoreFromInputAndAsyncTermsObservableData class
         /// <summary>
         /// a message formatter that lays out the information written by event handlers.
         /// </summary>
@@ -173,9 +174,9 @@ namespace DatFlowExPatternsUnitTests {
             resultsCODEvents[$"Ticks: {DateTime.Now.Ticks} Event: Level1PropertyChanged  PropertyName {e.PropertyName}"] = DateTime.Now.ToLongTimeString();
         }
         #endregion PropertyChanged Event Handlers
-        #endregion Event handlers for the CODs found in the CalculateAndStoreFromInputAndAsyncTermsObservableData class
-        #region Concrete instance of CalculateAndStoreFromInputAndAsyncTermsObservableData
-        public class ISSDataConcrete : CalculateAndStoreFromInputAndAsyncTermsObservableData<decimal>
+        #endregion Event handlers for the CODs found in the SolveAndStoreFromInputAndAsyncTermsObservableData class
+        #region Concrete instance of SolveAndStoreFromInputAndAsyncTermsObservableData
+        public class ISSDataConcrete : SolveAndStoreObservableData<decimal>
         {
             public ISSDataConcrete()
             : base()
@@ -219,7 +220,7 @@ namespace DatFlowExPatternsUnitTests {
             }
 
             // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
-            // ~CalculateAndStoreFromInputAndAsyncTermsOptionsData() {
+            // ~SolveAndStoreFromInputAndAsyncTermsOptionsData() {
             //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
             //   Dispose(false);
             // }
@@ -237,42 +238,42 @@ namespace DatFlowExPatternsUnitTests {
             }
             #endregion
         }
-        #endregion Concrete instance of CalculateAndStoreFromInputAndAsyncTermsObservableData
+        #endregion Concrete instance of SolveAndStoreFromInputAndAsyncTermsObservableData
         //public ISSDataConcrete ISSData { get; set; }
     }
 
-    public class CalculateAndStoreFromInputAndAsyncTermsTestsBasic : IClassFixture<Fixture> {
+    public class SolveAndStoreFromInputAndAsyncTermsTestsBasic : IClassFixture<Fixture> {
         Fixture _fixture;
         readonly ITestOutputHelper output;
 
         #region Test Class Constructor
         /// <summary>
-        /// ctor. Initializes a new instance of the <see cref="CalculateAndStoreFromInputAndAsyncTermsTestsBasic" /> class.
+        /// ctor. Initializes a new instance of the <see cref="SolveAndStoreFromInputAndAsyncTermsTestsBasic" /> class.
         /// 
         /// </summary>
         /// <param name="output">The output.</param>
         /// <param name="fixture">The fixture.</param>
         /// 
-        public CalculateAndStoreFromInputAndAsyncTermsTestsBasic(ITestOutputHelper output, Fixture fixture) {
+        public SolveAndStoreFromInputAndAsyncTermsTestsBasic(ITestOutputHelper output, Fixture fixture) {
             this.output = output;
             _fixture = fixture;
         }
         #endregion Test Class Constructor
-        #region CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest
+        #region SolveAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest
         [Theory]
         //[InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}}]")]
         //[InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}}}]")]
         [InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}}},{\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}}},{\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}}]")]
-        public async void CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest(string inTestData) {
+        public async void SolveAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest(string inTestData) {
             // arrange
-            // Fixture.Log.Debug("starting test CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest");
+            // Fixture.Log.Debug("starting test SolveAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest");
             // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
             _fixture.resultsCODEvents.Clear();
             // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
             _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
-            IEnumerable<IInputMessage<string, double>> _imcoll;
+            IEnumerable<IInputMessage<(string, string),int>> _imcoll;
 
-            //            CalculateAndStoreFromInputAndAsyncTermsObservableData _fixture.iSSData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
+            //            SolveAndStoreObservableData _fixture.iSSData = new SolveAndStoreObservableData(_fixture.onResultsLevel0CODCollectionChanged,
 
             Fixture.ISSDataConcrete iSSData = new Fixture.ISSDataConcrete(_fixture.onResultsLevel0CODCollectionChanged,
                                                              _fixture.onResultsLevel1CODCollectionChanged,
@@ -283,17 +284,17 @@ namespace DatFlowExPatternsUnitTests {
 
             using (iSSData) {
                 /*
-                var calculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(_fixture.iSSData,
+                var solveAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData = new SolveAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(_fixture.iSSData,
                 _fixture.mockTerm1.Object,
-                CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+                SolveAndStoreOptions.Default);
                 */
-                var calculateAndStoreFromInputAndAsyncTerms = new CalculateAndStoreFromInputAndAsyncTerms(iSSData,
+                var solveAndStoreFromInputAndAsyncTerms = new SolveAndStoreFromInputAndAsyncTerms(iSSData,
                                                                                                           _fixture.mockTerm1.Object,
-                                                                                                          CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+                                                                                                          SolveAndStoreOptions.Default);
                 // act
                 try
                 {
-                    _imcoll = JsonConvert.DeserializeObject<InputMessage<string, double>[]>(inTestData);
+                    _imcoll = JsonConvert.DeserializeObject<InputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>[]>(inTestData);
                 }
                 catch
                 {
@@ -301,13 +302,13 @@ namespace DatFlowExPatternsUnitTests {
                     throw e;
                 }
                 foreach(var im in _imcoll) {
-                    var sendAsyncResults = calculateAndStoreFromInputAndAsyncTerms.InputBlock.SendAsync<IInputMessage<string, double>>(im);
+                    var sendAsyncResults = solveAndStoreFromInputAndAsyncTerms.InputBlock.SendAsync<IInputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>>(im);
                     await sendAsyncResults;
                 }
                 // inform the head of the network that there is no more data
-                calculateAndStoreFromInputAndAsyncTerms.InputBlock.Complete();
+                solveAndStoreFromInputAndAsyncTerms.InputBlock.Complete();
                 // wait for the network to indicate completion
-                await calculateAndStoreFromInputAndAsyncTerms.CompletionTask;
+                await solveAndStoreFromInputAndAsyncTerms.CompletionTask;
             }
             // assert
             // send the observed events to test output
@@ -337,7 +338,7 @@ namespace DatFlowExPatternsUnitTests {
                          numOuterNotifyCollectionChanged +
                 numInnerNotifyCollectionChanged);
         }
-        #endregion CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest
+        #endregion SolveAndStoreSingleInputStringFormattedAsJSONCollectionToObservableDataTest
         #region ParseSingleInputStringFormattedAsJSONCollectionToInputMessageTest
         [Theory]
         //[InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}}]")]
@@ -345,19 +346,19 @@ namespace DatFlowExPatternsUnitTests {
         [InlineData("[{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k2\",\"Item3\":{\"B\":12.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k3\",\"Item3\":{\"C\":13.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k4\",\"Item3\":{\"D\":14.0}}},{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k5\",\"Item3\":{\"A\":15.0,\"B\":15.1,\"C\":15.2,\"D\":15.3}}},{\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k2\",\"Item3\":{\"A\":22.0,\"B\":22.1}}},{\"Value\":{\"Item1\":\"k2\",\"Item2\":\"k3\",\"Item3\":{\"A\":23.0,\"E\":22.4}}}]")]
         public async void ParseSingleInputStringFormattedAsJSONCollectionToInputMessageTest(string inTestData) {
             // arrange
-            List<InputMessage<string, double>> result = new List<InputMessage<string, double>>();
+            List<InputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>> result = new List<InputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>>();
             /*
-            var action = new Action<IEnumerable<IInputMessage<string, double>>>(im => result.AddRange(im));
+            var action = new Action<IEnumerable<IInputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>>>(im => result.AddRange(im));
             var parseSingleInputStringFormattedAsJSONCollectionToAction = new ParseSingleInputStringFormattedAsJSONCollectionToAction(action);
             */
-            //IEnumerable<InputMessage<string, double>> _imcoll;
-            InputMessage<string, double>[] _imcoll;
+            //IEnumerable<InputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>> _imcoll;
+            InputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>[] _imcoll;
 
             // act
             try
             {
-                // _imcoll = JsonConvert.DeserializeObject<IEnumerable<InputMessage<string, double>>>(inTestData);
-                _imcoll = JsonConvert.DeserializeObject<InputMessage<string, double>[]>(inTestData);
+                // _imcoll = JsonConvert.DeserializeObject<IEnumerable<InputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>>>(inTestData);
+                _imcoll = JsonConvert.DeserializeObject<InputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>[]>(inTestData);
             }
             catch
             {
@@ -378,13 +379,13 @@ namespace DatFlowExPatternsUnitTests {
             result.Should()
                 .HaveCount(7);
             result[0].Should()
-                .BeOfType(typeof(InputMessage<string, double>));
+                .BeOfType(typeof(InputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>));
             result[0].Value.k1.Should()
                 .Be("k1");
         }
         #endregion ParseSingleInputStringFormattedAsJSONCollectionToInputMessageTest
         #region ParseSingleInputStringFormattedAsJSONToInputMessageTest
-        // Ensure that the dataflow ParseSingleInputStringFormattedAsJSONToInputMessage will take in a string and put out an InputMessage
+        // Ensure that the dataflow JSONSingleIMToInputMessage will take in a string and put out an InputMessage
 
         [Theory]
         [InlineData("{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}}")]
@@ -392,11 +393,11 @@ namespace DatFlowExPatternsUnitTests {
             // arrange
             // arrange
             //_fixture.m_logger.Debug("starting test");
-            InputMessage<string, double> result = default;
-            var action = new Action<InputMessage<string, double>>(im => result =
+            InputMessage<(string k1,string k2), int> result = default;
+            var action = new Action<InputMessage<(string, string),int>>(im => result =
                 im);
             var parseSingleInputStringFormattedAsJSONToInputMessage = new ParseSingleInputStringFormattedAsJSONToInputMessage(action,
-                                                                                                                              CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
+                                                                                                                              SolveAndStoreOptions.Verbose);
 
             // act
             var sendAsyncResults = parseSingleInputStringFormattedAsJSONToInputMessage.InputBlock.SendAsync(inTestData);
@@ -408,12 +409,15 @@ namespace DatFlowExPatternsUnitTests {
 
             // assert
             result.Should()
-                .BeOfType(typeof(InputMessage<string, double>));
-            result.Value.k1.Should()
+                .BeOfType(typeof(InputMessage<(string, string),int>));
+            result.StoreP.k1.Should()
                 .Be("k1");
-            result.Value.k2.Should()
+            result.StoreP.k2.Should()
                 .Be("k1");
-            result.Value.terms1.Should()
+            result.SolveP.Should()
+    .BeOfType(typeof(int));
+            /*
+            result.SolveP.Should()
                 .BeOfType(typeof(ReadOnlyDictionary<string, double>));
             result.Value.terms1.Keys.Count<string>()
                 .Should()
@@ -422,14 +426,26 @@ namespace DatFlowExPatternsUnitTests {
                 .Contain("A");
             result.Value.terms1.Values.Should()
                 .Contain(11.0);
+            */
         }
 
+        class Parser : JSONSingleIMToInputMessage<string, InputMessage<(string, string), int>>
+        {
+            public Parser() :base ()
+            {
+            }
+            public Parser(SolveAndStoreOptions solveAndStoreOptions) : base(solveAndStoreOptions)
+            {
+                
+            }
+        }
         public class ParseSingleInputStringFormattedAsJSONToInputMessage : Dataflow<string> {
             ITargetBlock<string> _headBlock;
 
-            public ParseSingleInputStringFormattedAsJSONToInputMessage(Action<InputMessage<string, double>> action, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-                var _bAccepter = new ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms.ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
-                var _bTerminator = DataflowUtils.FromDelegate<InputMessage<string, double>>(action);
+            public ParseSingleInputStringFormattedAsJSONToInputMessage(Action<InputMessage<(string, string), int>> action, SolveAndStoreOptions solveAndStoreOptions) : base(solveAndStoreOptions) {
+                
+                var _bAccepter = new Parser(SolveAndStoreOptions.Default);
+                var _bTerminator = DataflowUtils.FromDelegate<InputMessage<(string, string),int>>(action);
                 _bAccepter.Name = "_bAccepter";
                 _bTerminator.Name = "_bTerminator";
                 this.RegisterChild(_bAccepter);
@@ -442,17 +458,17 @@ namespace DatFlowExPatternsUnitTests {
             public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
         }
         #endregion ParseSingleInputStringFormattedAsJSONToInputMessageTest
-        #region CalculateAndStoreSingleInputStringFormattedAsJSONToObservableDataTest
+        #region SolveAndStoreSingleInputStringFormattedAsJSONToObservableDataTest
         [Theory]
         [InlineData("{\"Value\":{\"Item1\":\"k1\",\"Item2\":\"k1\",\"Item3\":{\"A\":11.0}}}")]
-        public async void CalculateAndStoreSingleInputStringFormattedAsJSONToObservableDataTest(string inTestData) {
+        public async void SolveAndStoreSingleInputStringFormattedAsJSONToObservableDataTest(string inTestData) {
             // arrange
             //Fixture.Log.Debug("starting test");
             // since the resultsCODEvents list in the fixture is shared between tests, the list needs to be cleared
             _fixture.resultsCODEvents.Clear();
             // since the fetchedIndividualElementsOfTerm1Events list in the fixture is shared between tests, the list needs to be cleared
             _fixture.fetchedIndividualElementsOfTerm1Events.Clear();
-            //        CalculateAndStoreFromInputAndAsyncTermsObservableData _fixture.iSSData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
+            //        SolveAndStoreObservableData _fixture.iSSData = new SolveAndStoreObservableData(_fixture.onResultsLevel0CODCollectionChanged,
 
             Fixture.ISSDataConcrete iSSData = new Fixture.ISSDataConcrete(_fixture.onResultsLevel0CODCollectionChanged,
                                                                          _fixture.onResultsLevel1CODCollectionChanged,
@@ -462,19 +478,19 @@ namespace DatFlowExPatternsUnitTests {
                                                                          _fixture.onFetchingElementSetsOfTerm1CollectionChanged);
 
              using(iSSData) {
-            var calculateAndStoreSingleInputStringFormattedAsJSONToObservableData = new CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(iSSData,
+            var solveAndStoreSingleInputStringFormattedAsJSONToObservableData = new SolveAndStoreSingleInputStringFormattedAsJSONToObservableData(iSSData,
                                                                                                                                                               _fixture.mockTerm1.Object,
-                                                                                                                                                              CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+                                                                                                                                                              SolveAndStoreOptions.Default);
 
                 // act
-                var sendAsyncResults = calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.SendAsync(inTestData);
+                var sendAsyncResults = solveAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.SendAsync(inTestData);
                 await sendAsyncResults;
                 // wait a minute to debug
                 //await Task.Delay(new TimeSpan(0, 0, 1));
                 // inform the head of the network that there is no more data
-                calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.Complete();
+                solveAndStoreSingleInputStringFormattedAsJSONToObservableData.InputBlock.Complete();
                 // wait for the network to indicate completion
-                await calculateAndStoreSingleInputStringFormattedAsJSONToObservableData.CompletionTask;
+                await solveAndStoreSingleInputStringFormattedAsJSONToObservableData.CompletionTask;
 
                 // assert
                 // send the observed events to test output
@@ -505,35 +521,35 @@ namespace DatFlowExPatternsUnitTests {
             }
         }
 
-        public class CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData : Dataflow<string> {
+        public class SolveAndStoreSingleInputStringFormattedAsJSONToObservableData : Dataflow<string> {
             ITargetBlock<string> _headBlock;
 
-            public CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData<decimal> iSSData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-                var _bAccepter = new ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms.ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions.Verbose);
-                var _calculateAndStoreFromInputAndAsyncTerms = new CalculateAndStoreFromInputAndAsyncTerms(iSSData,
+            public SolveAndStoreSingleInputStringFormattedAsJSONToObservableData(SolveAndStoreObservableData<decimal> iSSData, IWebGet webGet, SolveAndStoreOptions solveAndStoreOptions) : base(solveAndStoreOptions) {
+                var _bAccepter = new ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms.JSONSingleIMToInputMessage(SolveAndStoreOptions.Verbose);
+                var _solveAndStoreFromInputAndAsyncTerms = new SolveAndStoreFromInputAndAsyncTerms(iSSData,
                                                                                                            webGet,
-                                                                                                           calculateAndStoreFromInputAndAsyncTermsOptions);
+                                                                                                           solveAndStoreOptions);
                 _bAccepter.Name = "_bAccepter";
-                _calculateAndStoreFromInputAndAsyncTerms.Name = "_bTerminator";
+                _solveAndStoreFromInputAndAsyncTerms.Name = "_bTerminator";
                 this.RegisterChild(_bAccepter);
-                this.RegisterChild(_calculateAndStoreFromInputAndAsyncTerms);
-                _bAccepter.LinkTo(_calculateAndStoreFromInputAndAsyncTerms);
-                _calculateAndStoreFromInputAndAsyncTerms.RegisterDependency(_bAccepter);
+                this.RegisterChild(_solveAndStoreFromInputAndAsyncTerms);
+                _bAccepter.LinkTo(_solveAndStoreFromInputAndAsyncTerms);
+                _solveAndStoreFromInputAndAsyncTerms.RegisterDependency(_bAccepter);
                 this._headBlock = _bAccepter.InputBlock;
             }
 
             public override ITargetBlock<string> InputBlock { get { return this._headBlock; } }
         }
-        #endregion CalculateAndStoreSingleInputStringFormattedAsJSONToObservableDataTest
+        #endregion SolveAndStoreSingleInputStringFormattedAsJSONToObservableDataTest
         /*
         public class ParseSingleInputStringFormattedAsJSONCollectionToAction : Dataflow<string>
         {
             ITargetBlock<string> _headBlock;
 
-            public ParseSingleInputStringFormattedAsJSONCollectionToAction(Action<IEnumerable<IInputMessage<string, double>>> action) : base(CalculateAndStoreFromInputAndAsyncTermsOptions.Default)
+            public ParseSingleInputStringFormattedAsJSONCollectionToAction(Action<IEnumerable<IInputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>>> action) : base(SolveAndStoreOptions.Default)
             {
-                var _bAccepter = new ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
-                var _bTerminator = DataflowUtils.FromDelegate<IEnumerable<IInputMessage<string, double>>>(action);
+                var _bAccepter = new JSONCollectionIMToInputMessageCollection(SolveAndStoreOptions.Default);
+                var _bTerminator = DataflowUtils.FromDelegate<IEnumerable<IInputMessage<(string, string),decimal, ImmutableDictionary<string, double>, string, double>>>(action);
                 _bAccepter.Name = "_bAccepter";
                 _bTerminator.Name = "_bTerminator";
                 this.RegisterChild(_bAccepter);
@@ -547,19 +563,19 @@ namespace DatFlowExPatternsUnitTests {
         }
 
         /// <summary>
-        /// Class CalculateAndStoreSingleInputStringFormattedAsJSONToObservableData.
+        /// Class SolveAndStoreSingleInputStringFormattedAsJSONToObservableData.
         /// </summary>
         /// <seealso cref="Gridsum.DataflowEx.Dataflow{System.String}" />
-        public class CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData : Dataflow<string>
+        public class SolveAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData : Dataflow<string>
         {
             ITargetBlock<string> _headBlock;
 
-            public CalculateAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(CalculateAndStoreFromInputAndAsyncTermsObservableData _fixture.iSSData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions)
+            public SolveAndStoreSingleInputStringFormattedAsJSONCollectionToObservableData(SolveAndStoreObservableData _fixture.iSSData, IWebGet webGet, SolveAndStoreOptions solveAndStoreOptions) : base(solveAndStoreOptions)
             {
-                var _bAccepter = new ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
-                var _bTerminator = new CalculateAndStoreFromInputAndAsyncTerms(_fixture.iSSData,
+                var _bAccepter = new JSONCollectionIMToInputMessageCollection(SolveAndStoreOptions.Default);
+                var _bTerminator = new SolveAndStoreFromInputAndAsyncTerms(_fixture.iSSData,
                                                                               webGet,
-                                                                              calculateAndStoreFromInputAndAsyncTermsOptions);
+                                                                              solveAndStoreOptions);
 
                 _bAccepter.Name = "_bAccepter";
                 _bTerminator.Name = "_bTerminator";
@@ -568,7 +584,7 @@ namespace DatFlowExPatternsUnitTests {
                 _bAccepter.LinkTo(_bTerminator);
                 _bTerminator.RegisterDependency(_bAccepter);
 
-                // Need a propagator block between the input collection and the CalculateAndStoreFromInputAndAsyncTerms to do the iterating.
+                // Need a propagator block between the input collection and the SolveAndStoreFromInputAndAsyncTerms to do the iterating.
                 this._headBlock = _bAccepter.InputBlock;
             }
 
@@ -594,15 +610,15 @@ namespace DatFlowExPatternsUnitTests {
     // log start
     // _logger.Debug("Logging");
     // Create the Observable data structures and their event handlers
-    using(CalculateAndStoreFromInputAndAsyncTermsObservableData _fixture.iSSData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
+    using(SolveAndStoreObservableData _fixture.iSSData = new SolveAndStoreObservableData(_fixture.onResultsLevel0CODCollectionChanged,
     _fixture.onResultsNestedCODPropertyChanged,
     _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
     _fixture.onSigIsReadyTerm1CollectionChanged,
     _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged)) {
-    // Create a new DataFlowEx network that combines the ParseInputStringFormattedAsJSONToInputMessage and CalculateAndStoreFromInputAndAsyncTerms networks
+    // Create a new DataFlowEx network that combines the ParseInputStringFormattedAsJSONToInputMessage and SolveAndStoreFromInputAndAsyncTerms networks
     var parseStringToTupleThenResultsFromInputAnd1Term = new ParseStringToTupleThenResultsFromInputAnd1Term(_fixture.iSSData,
     _fixture.mockTerm1.Object,
-    CalculateAndStoreFromInputAndAsyncTermsOptions.Default);
+    SolveAndStoreOptions.Default);
     
     // Split the testInStr string on the ;, and send each substring into the head of the pipeline
     var REouter = new Regex("(?<oneTuple>.*?;)");
@@ -689,16 +705,16 @@ namespace DatFlowExPatternsUnitTests {
     
     // act
     // Create the Observable data structures and their event handlers
-    using(CalculateAndStoreFromInputAndAsyncTermsObservableData _fixture.iSSData = new CalculateAndStoreFromInputAndAsyncTermsObservableData(_fixture.onResultsLevel0CODCollectionChanged,
+    using(SolveAndStoreObservableData _fixture.iSSData = new SolveAndStoreObservableData(_fixture.onResultsLevel0CODCollectionChanged,
     _fixture.onResultsNestedCODPropertyChanged,
     _fixture.onFetchedIndividualElementsOfTerm1CollectionChanged,
     _fixture.onSigIsReadyTerm1CollectionChanged,
     _fixture.onFetchingIndividualElementsOfTerm1CollectionChanged)) {
-    CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions();
+    SolveAndStoreOptions solveAndStoreOptions = new SolveAndStoreOptions();
     // Create the new DataFlowEx network 
     var rFromJSONInputAnd1Term = new ParseJSONStringCollectionToInputMessage(_fixture.iSSData,
     _fixture.mockTerm1.Object,
-    calculateAndStoreFromInputAndAsyncTermsOptions);
+    solveAndStoreOptions);
     // Send the test data to the network
     var task = rFromJSONInputAnd1Term.InputBlock.SendAsync(testInStr);
     
@@ -749,20 +765,20 @@ namespace DatFlowExPatternsUnitTests {
     ITargetBlock<string> _headBlock;
     
     // Constructor
-    public ParseStringToTupleThenResultsFromInputAnd1Term(CalculateAndStoreFromInputAndAsyncTermsObservableData _fixture.iSSData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+    public ParseStringToTupleThenResultsFromInputAnd1Term(SolveAndStoreObservableData _fixture.iSSData, IWebGet webGet, SolveAndStoreOptions solveAndStoreOptions) : base(solveAndStoreOptions) {
     // Create the DataFlowEx network that accepts a long string (test data) and breaks it into individual inputs for the following network
     var _bAccepter = new ParseInputStringFormattedAsJSONToInputMessage();
-    // Create the DataFlowEx network that calculates a Results COD from a formula and a term
+    // Create the DataFlowEx network that solves a Results COD from a formula and a term
     // The instance _fixture.iSSData supplies the Results COD and the term1 COD
-    CalculateAndStoreFromInputAndAsyncTerms _bTerminator = new CalculateAndStoreFromInputAndAsyncTerms(_fixture.iSSData,
+    SolveAndStoreFromInputAndAsyncTerms _bTerminator = new SolveAndStoreFromInputAndAsyncTerms(_fixture.iSSData,
     webGet,
-    calculateAndStoreFromInputAndAsyncTermsOptions);
+    solveAndStoreOptions);
     
     _bAccepter.Name = "_bAccepter";
     _bTerminator.Name = "_bTerminator";
     
     // Link Dataflow 
-    // Link _bAccepter to _bTerminator when the message has isReadyToCalculate = true
+    // Link _bAccepter to _bTerminator when the message has isReadyToSolve = true
     _bAccepter.LinkTo(_bTerminator);
     
     // Link completion

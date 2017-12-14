@@ -1,11 +1,16 @@
 ﻿using System.Collections.Generic;
 
-namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
+namespace ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms
 {
-    public partial class CalculateAndStoreFromInputAndAsyncTerms  {
-        public interface IInternalMessage<TKeyTerm1>
+    public abstract partial class SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult>
+    {
+        internal interface IInternalMessage : IInputMessage<ITStoreP, ITSolveP>
         {
-            (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToCalculate) Value { get; set; }
-        }// The class used as the message between the _acceptor, The _DynamicBuffers, and the _bSolveStore
+
+            //(string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToSolve) Value { get; set; }
+
+            KeySignature<string> sig { get; }
+            bool IsReadyToSolve { get; }
+        }
     }
 }

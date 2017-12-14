@@ -5,25 +5,25 @@ using System.Linq;
 using System.Threading.Tasks;
 using ATAP.Utilities.Logging.Logging;
 
-namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
+namespace ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms
 {
     /// <summary>
-    /// Class CalculateAndStoreFromInputAndAsyncTermsOptions.
-    /// Provides hints and configurations to DataFlowEXPatterns.CalculateAndStoreFromInputAndAsyncTerms
+    /// Class SolveAndStoreOptions.
+    /// Provides hints and configurations to DataFlowEXPatterns.SolveAndStoreFromInputAndAsyncTerms
     /// Extends the Gridsum.DataflowEx.DataflowOptions
     /// <remarks>
     /// </remarks>
     /// </summary>
-    public class CalculateAndStoreFromInputAndAsyncTermsOptions : Gridsum.DataflowEx.DataflowOptions
+    public class SolveAndStoreOptions : Gridsum.DataflowEx.DataflowOptions
     {
 
-        private static CalculateAndStoreFromInputAndAsyncTermsOptions s_defaultOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions.Default)
+        private static SolveAndStoreOptions s_defaultOptions = new SolveAndStoreOptions(DataflowOptions.Default)
         {
             _asyncFetchTimeout = DefaultAsyncFetchTimeout,
             _asyncFetchTimeInterval = DefaultAsyncFetchTimeInterval
         };
 
-        private static CalculateAndStoreFromInputAndAsyncTermsOptions s_verboseOptions = new CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions.Verbose)
+        private static SolveAndStoreOptions s_verboseOptions = new SolveAndStoreOptions(DataflowOptions.Verbose)
         {
             _asyncFetchTimeout = DefaultAsyncFetchTimeout,
             _asyncFetchTimeInterval = DefaultAsyncFetchTimeInterval
@@ -34,10 +34,10 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
         private TimeSpan _asyncFetchTimeInterval;
 
 
-        public CalculateAndStoreFromInputAndAsyncTermsOptions() : this(DefaultAsyncFetchTimeout, DefaultAsyncFetchTimeInterval, DataflowOptions.Default) { }
-        public CalculateAndStoreFromInputAndAsyncTermsOptions(DataflowOptions dataFlowOptions) : this(DefaultAsyncFetchTimeout, DefaultAsyncFetchTimeInterval, dataFlowOptions) { }
-        public CalculateAndStoreFromInputAndAsyncTermsOptions(TimeSpan asyncFetchTimeout, TimeSpan asyncFetchTimeInterval) : this(asyncFetchTimeout, asyncFetchTimeInterval, DataflowOptions.Default) { }
-        public CalculateAndStoreFromInputAndAsyncTermsOptions(TimeSpan asyncFetchTimeout, TimeSpan asyncFetchTimeInterval, DataflowOptions dataFlowOptions) : base()
+        public SolveAndStoreOptions() : this(DefaultAsyncFetchTimeout, DefaultAsyncFetchTimeInterval, DataflowOptions.Default) { }
+        public SolveAndStoreOptions(DataflowOptions dataFlowOptions) : this(DefaultAsyncFetchTimeout, DefaultAsyncFetchTimeInterval, dataFlowOptions) { }
+        public SolveAndStoreOptions(TimeSpan asyncFetchTimeout, TimeSpan asyncFetchTimeInterval) : this(asyncFetchTimeout, asyncFetchTimeInterval, DataflowOptions.Default) { }
+        public SolveAndStoreOptions(TimeSpan asyncFetchTimeout, TimeSpan asyncFetchTimeInterval, DataflowOptions dataFlowOptions) : base()
         {
 
             _asyncFetchTimeout = asyncFetchTimeout;
@@ -82,7 +82,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
         /// <summary>
         /// A predefined default setting for DataflowOptions
         /// </summary>
-        public new static CalculateAndStoreFromInputAndAsyncTermsOptions Default
+        public new static SolveAndStoreOptions Default
         {
             get
             {
@@ -112,7 +112,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
         /// <summary>
         /// A predefined verbose setting for DataflowOptions
         /// </summary>
-        public new static CalculateAndStoreFromInputAndAsyncTermsOptions Verbose
+        public new static SolveAndStoreOptions Verbose
         {
             get
             {
@@ -122,9 +122,9 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
         #region Configure this class to use ATAP.Utilities.Logging
         internal static ILog Log { get; set; }
 
-        static CalculateAndStoreFromInputAndAsyncTermsOptions()
+        static SolveAndStoreOptions()
         {
-            Log = LogProvider.For<CalculateAndStoreFromInputAndAsyncTermsOptions>();
+            Log = LogProvider.For<SolveAndStoreOptions>();
         }
         #endregion Configure this class to use ATAP.Utilities.Logging
     }

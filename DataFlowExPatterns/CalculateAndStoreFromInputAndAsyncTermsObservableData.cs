@@ -5,39 +5,106 @@ using System.Threading.Tasks;
 using ATAP.Utilities.Logging.Logging;
 using Swordfish.NET.Collections;
 
-namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
-    public interface ICalculateAndStoreFromInputAndAsyncTermsObservableData<TResults>
+namespace ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms {
+
+    public class TSolveP_MCPR 
     {
-        void RecordR(string k1, string k2, TResults pr);
+
+    }
+    public interface ISolveAndStoreObservableData<ITStoreP, ITSolveP, TResults>
+    {
+        //void RecordR(ITStoreP storeP, TResults pr);
+         Action<IInputMessage<ITStoreP, ITSolveP>> SolveAndStoreAction  {get; } 
         void TearDown();
 
-        ConcurrentObservableDictionary<string, byte> ElementSetsOfTerm1Ready { get ; set ; }
-        ConcurrentObservableDictionary<string, double> FetchedIndividualElementsOfTerm1 { get ; set ; }
-        ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> FetchingElementSetsOfTerm1 { get ; set ; }
-        ConcurrentObservableDictionary<string, Task<double>> FetchingIndividualElementsOfTerm1 { get ; set ; }
-        NotifyCollectionChangedEventHandler OnFetchedIndividualElementsOfTerm1CollectionChanged { get ; set ; }
-        PropertyChangedEventHandler OnFetchedIndividualElementsOfTerm1PropertyChanged { get ; set ; }
-        NotifyCollectionChangedEventHandler OnFetchingElementSetsOfTerm1CollectionChanged { get ; set ; }
-        PropertyChangedEventHandler OnFetchingElementSetsOfTerm1PropertyChanged { get ; set ; }
-        NotifyCollectionChangedEventHandler OnFetchingIndividualElementsOfTerm1CollectionChanged { get ; set ; }
-        PropertyChangedEventHandler OnFetchingIndividualElementsOfTerm1PropertyChanged { get ; set ; }
-        NotifyCollectionChangedEventHandler OnResultsCODCollectionChanged { get ; set ; }
-        PropertyChangedEventHandler OnResultsCODPropertyChanged { get ; set ; }
-        NotifyCollectionChangedEventHandler OnResultsNestedCODCollectionChanged { get ; set ; }
-        PropertyChangedEventHandler OnResultsNestedCODPropertyChanged { get ; set ; }
-        NotifyCollectionChangedEventHandler OnSigIsReadyTerm1CollectionChanged { get ; set ; }
-        PropertyChangedEventHandler OnSigIsReadyTerm1PropertyChanged { get ; set ; }
-        ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResults>> ResultsCOD { get ; set ; }
+        ConcurrentObservableDictionary<string, byte> ElementSetsOfTerm1Ready { get; set; }
+        ConcurrentObservableDictionary<string, double> FetchedIndividualElementsOfTerm1 { get; set; }
+        ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> FetchingElementSetsOfTerm1 { get; set; }
+        ConcurrentObservableDictionary<string, Task<double>> FetchingIndividualElementsOfTerm1 { get; set; }
+        NotifyCollectionChangedEventHandler OnFetchedIndividualElementsOfTerm1CollectionChanged { get; set; }
+        PropertyChangedEventHandler OnFetchedIndividualElementsOfTerm1PropertyChanged { get; set; }
+        NotifyCollectionChangedEventHandler OnFetchingElementSetsOfTerm1CollectionChanged { get; set; }
+        PropertyChangedEventHandler OnFetchingElementSetsOfTerm1PropertyChanged { get; set; }
+        NotifyCollectionChangedEventHandler OnFetchingIndividualElementsOfTerm1CollectionChanged { get; set; }
+        PropertyChangedEventHandler OnFetchingIndividualElementsOfTerm1PropertyChanged { get; set; }
+        NotifyCollectionChangedEventHandler OnResultsCODCollectionChanged { get; set; }
+        PropertyChangedEventHandler OnResultsCODPropertyChanged { get; set; }
+        NotifyCollectionChangedEventHandler OnResultsNestedCODCollectionChanged { get; set; }
+        PropertyChangedEventHandler OnResultsNestedCODPropertyChanged { get; set; }
+        NotifyCollectionChangedEventHandler OnSigIsReadyTerm1CollectionChanged { get; set; }
+        PropertyChangedEventHandler OnSigIsReadyTerm1PropertyChanged { get; set; }
+        ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResults>> ResultsCOD { get; set; }
     }
-    public abstract class CalculateAndStoreFromInputAndAsyncTermsObservableData<TResults> : IDisposable, ICalculateAndStoreFromInputAndAsyncTermsObservableData<TResults>
+
+    public class SolveAndStoreObservableData_IAC : SolveAndStoreObservableData<int, TSolveP_MCPR, int>
     {
+        int[] _resultsArray;
+        internal static new ILog Log = LogProvider.For<SolveAndStoreObservableData_IAC>();
+        Action<IInputMessage<int, TSolveP_MCPR>> _solveAndStoreAction;
+
+        public int[] ResultsArray { get => _resultsArray; set => _resultsArray = value; }
+
+        public SolveAndStoreObservableData_IAC() :this(new Action<IInputMessage<int, TSolveP_MCPR>>(im => { ResultsArray[im.StoreP] = im.StoreP;
+        }),   new int[1000])
+        {
+                        
+        }
+        public SolveAndStoreObservableData_IAC(Action<IInputMessage<int, TSolveP_MCPR>> solveAndStoreAction, int[] resultsArray) :base()
+        {
+
+        }
+    public class SolveAndStoreObservableData_2TD: SolveAndStoreObservableData<(string k1, string k2), TSolveP_MCPR, decimal> {
+        internal static new ILog Log = LogProvider.For<SolveAndStoreObservableData_2TD>();
+        readonly Action<IInputMessage<(string k1, string k2), TSolveP_MCPR>> _solveAndStoreAction;
+        public override void SolveAndStore <IInputMessage<(string k1, string k2), TSolveP_MCPR>> SolveAndStoreAction { get=> _solveAndStoreAction; }
+        public SolveAndStoreObservableData_2TD() :base()
+        {
+        }
+        public override void RecordR((string k1, string k2) storeP, decimal pr)
+        {
+            if (ResultsCOD.ContainsKey(storeP.k1))
+            {
+                var innerCOD = ResultsCOD[storeP.k1];
+                if (innerCOD.ContainsKey(storeP.k2))
+                {
+                    throw new NotSupportedException("This pattern expects only one entry per k1k2 pair");
+                }
+                else
+                {
+                    //ToDo: Better understanding/handling of exceptions here
+                    try { innerCOD.Add(storeP.k2, pr); } catch { new Exception($"adding {pr} to {storeP.k1}'s innerDictionary keyed by {storeP.k2} failed"); }
+                }
+            }
+            else
+            {
+                var innerCOD = new ConcurrentObservableDictionary<string, decimal>();
+                if (this.onResultsNestedCODCollectionChanged != null)
+                {
+                    innerCOD.CollectionChanged += this.onResultsNestedCODCollectionChanged;
+                }
+
+                if (this.onResultsNestedCODPropertyChanged != null)
+                {
+                    innerCOD.PropertyChanged += this.onResultsNestedCODPropertyChanged;
+                }
+
+                try { innerCOD.Add(storeP.k2, pr); } catch { new Exception($"adding {storeP.pr} to the new innerDictionary keyed by {storeP.k2} failed"); }
+                try { ResultsCOD.Add(storeP.k1, innerCOD); } catch { new Exception($"adding the new innerDictionary to cODR keyed by {storeP.k1} failed"); }
+            };
+        }
+    }
+    public abstract class SolveAndStoreObservableData<ITStoreP, ITSolveP, TResult> : IDisposable, ISolveAndStoreObservableData<ITStoreP, ITSolveP ,TResult>
+    {
+        public readonly Action<IInputMessage<ITStoreP, ITSolveP>> _solveAndStoreAction;
+        public virtual Action<IInputMessage<ITStoreP, ITSolveP>> SolveAndStoreAction { get => _solveAndStoreAction; }
+
         // a thread-safe place to keep track of which individual key values of the set of key values of Term1 (sig.IndividualElements) are FetchingIndividualElementsOfTerm1
         ConcurrentObservableDictionary<string, Task<double>> _fetchingIndividualElementsOfTerm1;
         // A thread-safe place to keep track of which complete sets of key values (sig.Longest) of Term1 are in process of being fetched
         ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> _fetchingElementSetsOfTerm1;
         // A thread-safe place to keep the final results
-        ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResults>> _resultsCOD;
-        // A thread-safe place to keep track of which complete sets of key values (sig.Longest) of Term1 are ReadyToCalculate
+        ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResult>> _resultsCOD;
+        // A thread-safe place to keep track of which complete sets of key values (sig.Longest) of Term1 are ReadyToSolve
         ConcurrentObservableDictionary<string, byte> _elementSetsOfTerm1Ready;
         // A thread-safe place to keep the values fetched for each element of term1
         ConcurrentObservableDictionary<string, double> _fetchedIndividualElementsOfTerm1;
@@ -54,7 +121,9 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         NotifyCollectionChangedEventHandler onFetchedIndividualElementsOfTerm1CollectionChanged;
         PropertyChangedEventHandler onFetchedIndividualElementsOfTerm1PropertyChanged;
 
-        public CalculateAndStoreFromInputAndAsyncTermsObservableData() : this(new ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResults>>(),
+
+
+        public SolveAndStoreObservableData() : this(new ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResult>>(),
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 null,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 null,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 null,
@@ -74,7 +143,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         {
         }
 
-        public CalculateAndStoreFromInputAndAsyncTermsObservableData(NotifyCollectionChangedEventHandler onResultsCODCollectionChanged, NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged, NotifyCollectionChangedEventHandler onFetchedIndividualElementsOfTerm1CollectionChanged, NotifyCollectionChangedEventHandler onSigIsReadyTerm1CollectionChanged, NotifyCollectionChangedEventHandler onFetchingIndividualElementsOfTerm1CollectionChanged, NotifyCollectionChangedEventHandler onFetchingElementSetsOfTerm1CollectionChanged) : this(new ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResults>>(),
+        public SolveAndStoreObservableData(NotifyCollectionChangedEventHandler onResultsCODCollectionChanged, NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged, NotifyCollectionChangedEventHandler onFetchedIndividualElementsOfTerm1CollectionChanged, NotifyCollectionChangedEventHandler onSigIsReadyTerm1CollectionChanged, NotifyCollectionChangedEventHandler onFetchingIndividualElementsOfTerm1CollectionChanged, NotifyCollectionChangedEventHandler onFetchingElementSetsOfTerm1CollectionChanged) : this(new ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResult>>(),
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 onResultsCODCollectionChanged,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 null,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 onResultsNestedCODCollectionChanged,
@@ -93,7 +162,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 null)
         {
         }
-        public CalculateAndStoreFromInputAndAsyncTermsObservableData(NotifyCollectionChangedEventHandler onResultsCODCollectionChanged, PropertyChangedEventHandler onResultsCODPropertyChanged, NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged, PropertyChangedEventHandler onResultsNestedCODPropertyChanged, ConcurrentObservableDictionary<string, double> FetchedIndividualElementsOfTerm1, NotifyCollectionChangedEventHandler onFetchedIndividualElementsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchedIndividualElementsOfTerm1PropertyChanged, ConcurrentObservableDictionary<string, byte> SigIsReadyTerm1, NotifyCollectionChangedEventHandler onSigIsReadyTerm1CollectionChanged, PropertyChangedEventHandler onSigIsReadyTerm1PropertyChanged, ConcurrentObservableDictionary<string, Task> fetchingIndividualElementsOfTerm1, NotifyCollectionChangedEventHandler onFetchingIndividualElementsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchingIndividualElementsOfTerm1PropertyChanged, NotifyCollectionChangedEventHandler onFetchingElementSetsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchingElementSetsOfTerm1PropertyChanged) : this(new ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResults>>(),
+        public SolveAndStoreObservableData(NotifyCollectionChangedEventHandler onResultsCODCollectionChanged, PropertyChangedEventHandler onResultsCODPropertyChanged, NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged, PropertyChangedEventHandler onResultsNestedCODPropertyChanged, ConcurrentObservableDictionary<string, double> FetchedIndividualElementsOfTerm1, NotifyCollectionChangedEventHandler onFetchedIndividualElementsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchedIndividualElementsOfTerm1PropertyChanged, ConcurrentObservableDictionary<string, byte> SigIsReadyTerm1, NotifyCollectionChangedEventHandler onSigIsReadyTerm1CollectionChanged, PropertyChangedEventHandler onSigIsReadyTerm1PropertyChanged, ConcurrentObservableDictionary<string, Task> fetchingIndividualElementsOfTerm1, NotifyCollectionChangedEventHandler onFetchingIndividualElementsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchingIndividualElementsOfTerm1PropertyChanged, NotifyCollectionChangedEventHandler onFetchingElementSetsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchingElementSetsOfTerm1PropertyChanged) : this(new ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResult>>(),
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     onResultsCODCollectionChanged,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     onResultsCODPropertyChanged,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     onResultsNestedCODCollectionChanged,
@@ -113,9 +182,11 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         {
         }
 
-        public CalculateAndStoreFromInputAndAsyncTermsObservableData(ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResults>> resultsCOD, NotifyCollectionChangedEventHandler onResultsCODCollectionChanged, PropertyChangedEventHandler onResultsCODPropertyChanged, NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged, PropertyChangedEventHandler onResultsNestedCODPropertyChanged, ConcurrentObservableDictionary<string, double> FetchedIndividualElementsOfTerm1, NotifyCollectionChangedEventHandler onFetchedIndividualElementsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchedIndividualElementsOfTerm1PropertyChanged, ConcurrentObservableDictionary<string, byte> SigIsReadyTerm1, NotifyCollectionChangedEventHandler onSigIsReadyTerm1CollectionChanged, PropertyChangedEventHandler onSigIsReadyTerm1PropertyChanged, ConcurrentObservableDictionary<string, Task<double>> fetchingIndividualElementsOfTerm1, NotifyCollectionChangedEventHandler onFetchingIndividualElementsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchingIndividualElementsOfTerm1PropertyChanged, ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> fetchingElementSetsOfTerm1, NotifyCollectionChangedEventHandler onFetchingElementSetsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchingElementSetsOfTerm1PropertyChanged)
+        public SolveAndStoreObservableData(ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResult>> resultsCOD, NotifyCollectionChangedEventHandler onResultsCODCollectionChanged, PropertyChangedEventHandler onResultsCODPropertyChanged, NotifyCollectionChangedEventHandler onResultsNestedCODCollectionChanged, PropertyChangedEventHandler onResultsNestedCODPropertyChanged, ConcurrentObservableDictionary<string, double> FetchedIndividualElementsOfTerm1, NotifyCollectionChangedEventHandler onFetchedIndividualElementsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchedIndividualElementsOfTerm1PropertyChanged, ConcurrentObservableDictionary<string, byte> SigIsReadyTerm1, NotifyCollectionChangedEventHandler onSigIsReadyTerm1CollectionChanged, PropertyChangedEventHandler onSigIsReadyTerm1PropertyChanged, ConcurrentObservableDictionary<string, Task<double>> fetchingIndividualElementsOfTerm1, NotifyCollectionChangedEventHandler onFetchingIndividualElementsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchingIndividualElementsOfTerm1PropertyChanged, ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> fetchingElementSetsOfTerm1, NotifyCollectionChangedEventHandler onFetchingElementSetsOfTerm1CollectionChanged, PropertyChangedEventHandler onFetchingElementSetsOfTerm1PropertyChanged)
         {
-            Log.Trace("Constructor starting");
+                Log = LogProvider.GetLogger(nameof(SolveAndStoreObservableData<ITStoreP, ITSolveP, TResult>));
+
+                Log.Trace("Constructor starting");
             _resultsCOD = resultsCOD;
             this.onResultsCODCollectionChanged = onResultsCODCollectionChanged;
             if (this.onResultsCODCollectionChanged != null)
@@ -188,38 +259,8 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             Log.Trace("Constructor Finished");
         }
 
-        public void RecordR(string k1, string k2, TResults pr)
-        {
-            if (ResultsCOD.ContainsKey(k1))
-            {
-                var innerCOD = ResultsCOD[k1];
-                if (innerCOD.ContainsKey(k2))
-                {
-                    throw new NotSupportedException("This pattern expects only one entry per k1k2 pair");
-                }
-                else
-                {
-                    //ToDo: Better understanding/handling of exceptions here
-                    try { innerCOD.Add(k2, pr); } catch { new Exception($"adding {pr} to {k1}'s innerDictionary keyed by {k2} failed"); }
-                }
-            }
-            else
-            {
-                var innerCOD = new ConcurrentObservableDictionary<string, TResults>();
-                if (this.onResultsNestedCODCollectionChanged != null)
-                {
-                    innerCOD.CollectionChanged += this.onResultsNestedCODCollectionChanged;
-                }
-
-                if (this.onResultsNestedCODPropertyChanged != null)
-                {
-                    innerCOD.PropertyChanged += this.onResultsNestedCODPropertyChanged;
-                }
-
-                try { innerCOD.Add(k2, pr); } catch { new Exception($"adding {pr} to the new innerDictionary keyed by {k2} failed"); }
-                try { ResultsCOD.Add(k1, innerCOD); } catch { new Exception($"adding the new innerDictionary to cODR keyed by {k1} failed"); }
-            };
-        }
+        //public abstract void RecordR(ITStoreP storeP, TResult pr);
+        
 
         public ConcurrentObservableDictionary<string, Task<double>> FetchingIndividualElementsOfTerm1
         {
@@ -287,7 +328,7 @@ value;
 value;
         }
 
-        public ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResults>> ResultsCOD
+        public ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, TResult>> ResultsCOD
         {
             get => _resultsCOD; set => _resultsCOD =
 value;
@@ -305,7 +346,7 @@ value;
 value;
         }
 
-        internal static ILog Log = LogProvider.For<CalculateAndStoreFromInputAndAsyncTermsObservableData<TResults>>();
+
 
         public ConcurrentObservableDictionary<string, ConcurrentObservableDictionary<string, byte>> FetchingElementSetsOfTerm1
         {
@@ -372,7 +413,7 @@ value;
         }
 
         // if unmanaged (COM) resources are used, then override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
-        // ~CalculateAndStoreFromInputAndAsyncTermsOptionsData() {
+        // ~SolveAndStoreFromInputAndAsyncTermsOptionsData() {
         //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
         //   Dispose(false);
         // }

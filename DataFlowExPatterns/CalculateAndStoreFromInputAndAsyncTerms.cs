@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks.Dataflow;
 using System.Timers;
@@ -9,10 +10,10 @@ using Gridsum.DataflowEx;
 using Newtonsoft.Json;
 using Swordfish.NET.Collections;
 
-namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
+namespace ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms {
     /// <summary>
-    /// This DataFlow will calculate a Result (decimal), for each input message, and store that into a ConcurrentObservableDictionary (COD) 
-    ///   that was declared in the accompanying ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms project and passed into this dataflow's constructor
+    /// This DataFlow will solve a Result (decimal), for each input message, and store that into a ConcurrentObservableDictionary (COD) 
+    ///   that was declared in the accompanying ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms project and passed into this dataflow's constructor
     ///   The overall structure of teh graph starts with a Head block (_acceptor), and ends with a Action block that performs a calculation and stores the results (_bSolveStore)
     ///   The calculation being performed depends on Terms that are retrieved via an async fetch. 
     ///   The terms being retrieved are defined by the keys to the terms1 IReadOnlyDictionary that are part of the message
@@ -23,64 +24,82 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
     ///   When all of the messages buffered in a TransientBuffer are released to the _bSolveStore, the TransientBuffer is disposed of.
     ///   ToDo: a maxtimeToWait for the async fetch task to complete, after the _acceptor receives a Complete signal, before declaring a transient block faulted. 
     /// </summary>
-    public partial class CalculateAndStoreFromInputAndAsyncTerms : Dataflow<IInputMessage<string, double>> {
-        internal static ILog Log = LogProvider.For<CalculateAndStoreFromInputAndAsyncTerms>();
-        Dataflow<IInputMessage<string, double>, IInternalMessage<string>> _bAccepter;
+    public abstract partial class SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult> : Dataflow<IInputMessage<ITStoreP, ITSolveP>> {
+        internal ILog Log { get; }
+
+        Dataflow<IInputMessage<ITStoreP, ITSolveP>, IInternalMessage> _bAccepter;
         DynamicBuffers _bDynamicBuffers;
-        Dataflow<IInternalMessage<string>> _bSolveStore;
-        CalculateAndStoreFromInputAndAsyncTermsObservableData<decimal> _calculateAndStoreFromInputAndAsyncTermsObservableData;
-        CalculateAndStoreFromInputAndAsyncTermsOptions _calculateAndStoreFromInputAndAsyncTermsOptions;
+        Dataflow<IInternalMessage> _bSolveStore;
+        SolveAndStoreObservableData<ITStoreP, ITSolveP, TResult> _solveAndStoreObservableData;
+        SolveAndStoreOptions _solveAndStoreOptions;
         // Head of this dataflow graph
-        ITargetBlock<IInputMessage<string, double>> _headBlock;
-        // A thread-safe place to keep the TransientBuffers associated with each ElementSet of term1
-        ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>> _transientBuffersForElementSetsOfTerm1;
-        IWebGet _webGet;
+        ITargetBlock<IInputMessage<ITStoreP, ITSolveP>> _headBlock;
+        // A thread-safe place to keep the TransientBuffers associated with each ElementSet of each term
+        //ToDo another layer of indirection - array or dictionary - not sure...
+        //ConcurrentDictionary<string, Dataflow<IInternalMessage, IInternalMessage>> _transientBuffersForElementSets;
+        ConcurrentDictionary<ImmutableHashSet<string>, Dataflow<IInternalMessage, IInternalMessage>>[] _transientBuffersForElementSets;
         // External http client library.
+        IWebGet _webGet;
+        // how often to check on the completion  elements being fetched
         Timer asyncFetchCheckTimer;
-
+        Action<IInputMessage<ITStoreP, ITSolveP>> _solveAndStoreFunc;
         // Constructor
-        public CalculateAndStoreFromInputAndAsyncTerms(CalculateAndStoreFromInputAndAsyncTermsObservableData<decimal> calculateAndStoreFromInputAndAsyncTermsObservableData, IWebGet webGet, CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-            Log.Trace("Constructor starting");
+        public SolveAndStoreFromInputAndAsyncTerms(SolveAndStoreObservableData<ITStoreP, ITSolveP, TResult> solveAndStoreObservableData, IWebGet webGet, Action<IInputMessage<ITStoreP, ITSolveP>> solveAndStoreFunc, SolveAndStoreOptions solveAndStoreOptions) : base(solveAndStoreOptions) {
 
-            _calculateAndStoreFromInputAndAsyncTermsObservableData = calculateAndStoreFromInputAndAsyncTermsObservableData;
+            Log = LogProvider.GetLogger( nameof(SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult>));
+            Log.Trace($"Constructor for {nameof(SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult>)} starting");
+
+            _solveAndStoreObservableData = solveAndStoreObservableData;
             _webGet = webGet;
-            _calculateAndStoreFromInputAndAsyncTermsOptions = calculateAndStoreFromInputAndAsyncTermsOptions;
+            _solveAndStoreOptions = solveAndStoreOptions;
+            _solveAndStoreFunc = solveAndStoreFunc;
             // Create a place to store the TransientBuffers that buffer messages while waiting For all elements that make up the ElementSets Of Term1 to finish fetching
-            _transientBuffersForElementSetsOfTerm1 = new ConcurrentDictionary<string, Dataflow<IInternalMessage<string>, IInternalMessage<string>>>();
+            //ToDo change string to KeySignature.HashSet
+            // Number of terms that require async fetches for their terms
 
-            // foreach IInputMessage<TKeyTerm1,TValueTerm1>, create an internal message that adds the hashset for the terms1  and the bool used by the routing predicate
+            _transientBuffersForElementSets = new ConcurrentDictionary < ImmutableHashSet<string>, Dataflow < IInternalMessage, IInternalMessage >>[]  { new ConcurrentDictionary<ImmutableHashSet<string>, Dataflow<IInternalMessage, IInternalMessage>>(),new ConcurrentDictionary<ImmutableHashSet<string>, Dataflow<IInternalMessage, IInternalMessage>>()};
+            new ConcurrentDictionary<ImmutableHashSet<string>, Dataflow<IInternalMessage, IInternalMessage>> ();
+
+            // foreach IInputMessage, create an IInternal message that adds the KeySignature for the SolveP for each term  and the bool used by the routing predicate
             Log.Trace("Creating _bAccepter");
-            _bAccepter = new TransformBlock<IInputMessage<string, double>, IInternalMessage<string>>(_input => { Log.Trace("Accepter received IInputMessage");
-                // ToDo also check on the async tasks check when an upstream completion occurs
-                // ToDo add exception handling to ensure the tasks, as well as the async method's resources, are released if any blocks in the dataflow fault
+            _bAccepter = new TransformBlock<IInputMessage<ITStoreP, ITSolveP>, IInternalMessage> (_input => 
+                {
+                    Log.Trace("Accepter received IInputMessage");
+                    // ToDo also check on the async tasks check when an upstream completion occurs
+                    // ToDo add exception handling to ensure the tasks, as well as the async method's resources, are released if any blocks in the dataflow fault
 
-                // create a HashSet from the set of keys found in terms1
-                KeySignature<string> sig = new KeySignature<string>(_input.Value.terms1.Keys);
+                    // create a HashSet from the set of keys found in terms1
+                    KeySignature<string> sig = new KeySignature<string>(_input.SolveP);
 
-                // Is the sig.largest in the ElementSetsOfTerm1Ready dictionary? set the output bool accordingly
-                bool isReadyToCalculate = _calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready.ContainsKey(sig.Longest());
+                    // Is the sig.largest in the ElementSetsOfTerm1Ready dictionary? set the output bool accordingly
+                    bool isReadyToSolve = _solveAndStoreObservableData.ElementSetsOfTerm1Ready.ContainsKey(sig.Longest());
 
-                // Pass the message along to the next block, which will be either the _bSolveStore, or the _bDynamicBuffers
-                return new InternalMessage<string>((_input.Value.k1, _input.Value.k2, _input.Value.terms1, sig, isReadyToCalculate)); }).ToDataflow();
+                    // Pass the message along to the next block, which will be either the _bSolveStore, or the _bDynamicBuffers
+                    return new InternalMessage (_input.StoreP, _input.SolveP,  sig, isReadyToSolve);
+                }).ToDataflow();
 
-            // this block accepts messages where isReadyToCalculate is false, and buffers them
+            // this block accepts messages where isReadyToSolve is false, and buffers them
             Log.Trace("Creating _bDynamicBuffers");
             _bDynamicBuffers = new DynamicBuffers(this);
 
             // The terminator block performs both the Solve and the Store operations
             Log.Trace("Creating _bSolveStore");
-            _bSolveStore = new ActionBlock<IInternalMessage<string>>(_input => { Log.Trace($"_bSolveStore received InternalMessage having signature {_input.Value.sig.Longest()}");
-                // solve the equation for the input and all terms
+            _bSolveStore = new ActionBlock<IInternalMessage>(_input => {
+                Log.Trace($"_bSolveStore received InternalMessage having signature {_input.sig.Longest()}");
+                // solve the equation for the input and all terms and then store it
+                _solveAndStoreFunc(_input);
+                /*
                 var r1 = 0.0;
-                foreach(var kvp in _input.Value.terms1) {
+                foreach(var kvp in _input.SolveP) {
                     r1 += kvp.Value /
-                        _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchedIndividualElementsOfTerm1[kvp.Key];
+                        _solveAndStoreObservableData.FetchedIndividualElementsOfTerm1[kvp.Key];
                 }
 
                 // Store the results value
-                calculateAndStoreFromInputAndAsyncTermsObservableData.RecordR(_input.Value.k1,
-                                                                              _input.Value.k2,
-                                                                              Convert.ToDecimal(r1)); }).ToDataflow(calculateAndStoreFromInputAndAsyncTermsOptions);
+                solveAndStoreObservableData.RecordR(_input.StoreP,
+                                                                              Convert.ToDecimal(r1));
+                */
+            }).ToDataflow(solveAndStoreOptions);
 
 
             #region create asyncFetchCheckTimer and connect callback
@@ -90,7 +109,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             // The Cleanup method will call this timers Dispose method
             // the event handler's job is to call CheckAsyncTasks which will check for completed fetches and link the child Transient buffers to the _bSolveStore
             Log.Trace("creating and starting the asyncFetchCheckTimer");
-            asyncFetchCheckTimer = new Timer(_calculateAndStoreFromInputAndAsyncTermsOptions.AsyncFetchTimeInterval.TotalMilliseconds);
+            asyncFetchCheckTimer = new Timer(_solveAndStoreOptions.AsyncFetchTimeInterval.TotalMilliseconds);
             asyncFetchCheckTimer.AutoReset = true;
             // set the event handler (callback) for this timer to the function for async fetch tasks check-for-completion loop
             asyncFetchCheckTimer.Elapsed += new ElapsedEventHandler(asyncFetchCheckTimer_Elapsed);
@@ -102,12 +121,12 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
 
             // Link the data flow
             Log.Trace("Linking dataflow between blocks");
-            // Link _bAccepter to _bSolveStore when the InternalMessage.Value has isReadyToCalculate = true
+            // Link _bAccepter to _bSolveStore when the InternalMessage.Value has isReadyToSolve = true
             _bAccepter.LinkTo(_bSolveStore,
-                              internalMessage => internalMessage.Value.isReadyToCalculate);
-            // Link _bAccepter to _bDynamicBuffers when the  InternalMessage.Value has isReadyToCalculate = false
+                              internalMessage => internalMessage.IsReadyToSolve);
+            // Link _bAccepter to _bDynamicBuffers when the  InternalMessage.Value has isReadyToSolve = false
             _bAccepter.LinkTo(_bDynamicBuffers,
-                              internalMessage => !internalMessage.Value.isReadyToCalculate);
+                              internalMessage => !internalMessage.IsReadyToSolve);
             // data flow linkage of the dynamically created TransientBuffer children to the _bSolveStore is complex and handled elsewhere
 
             // Link the completion tasks
@@ -145,31 +164,31 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             Log.Trace("Starting the CheckAsyncTasks method");
             bool unfinished;
             // iterate each individual term of the sig, and get those that are not already present in the COD FetchingIndividualElementsOfTerm1
-            foreach(var sigLongest in _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1.Keys) {
+            foreach(var sigLongest in _solveAndStoreObservableData.FetchingElementSetsOfTerm1.Keys) {
                 unfinished = false;
                 Log.Trace($"Iterating FetchingElementSetsOfTerm1.Keys, now on {sigLongest}");
-                foreach(var element in _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1[sigLongest].Keys) {
+                foreach(var element in _solveAndStoreObservableData.FetchingElementSetsOfTerm1[sigLongest].Keys) {
                     Log.Trace($"Iterating FetchingElementSetsOfTerm1[{sigLongest}].Keys, now on {element}");
                     // If the element is completed, store the results into FetchedIndividualElementsOfTerm1 if that key does not yet exist (not the most efficient way)
                     //ToDo improve this algorithm in some way so it doesn't have to iterate teh entire dictionary every element every time
-                    if(_calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1[element].IsCompleted
-                        && !_calculateAndStoreFromInputAndAsyncTermsObservableData.FetchedIndividualElementsOfTerm1.ContainsKey(element)) {
-                        _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchedIndividualElementsOfTerm1[element] = _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1[element].Result;
+                    if(_solveAndStoreObservableData.FetchingIndividualElementsOfTerm1[element].IsCompleted
+                        && !_solveAndStoreObservableData.FetchedIndividualElementsOfTerm1.ContainsKey(element)) {
+                        _solveAndStoreObservableData.FetchedIndividualElementsOfTerm1[element] = _solveAndStoreObservableData.FetchingIndividualElementsOfTerm1[element].Result;
                     }
-                    unfinished &= _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1[element].IsCompleted;
+                    unfinished &= _solveAndStoreObservableData.FetchingIndividualElementsOfTerm1[element].IsCompleted;
                 }
                 if(!unfinished) {
                     Log.Trace($"sigLongest {sigLongest} is now finished");
                     // if sigLongest is finished, but not yet a key in ElementSetsOfTerm1Ready then this is the first loop where it is finally ready
-                    if(!_calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready.ContainsKey(sigLongest)) {
+                    if(!_solveAndStoreObservableData.ElementSetsOfTerm1Ready.ContainsKey(sigLongest)) {
                         // attach the transientBlock data linkage to the _bSolveStore  
-                        Log.Trace($"attaching buffer {_transientBuffersForElementSetsOfTerm1[sigLongest].Name} to _bsolve block, based on sigLongest {sigLongest}");
-                        _transientBuffersForElementSetsOfTerm1[sigLongest].LinkTo(_bSolveStore);
+                        Log.Trace($"attaching buffer {_transientBuffersForElementSets[sigLongest].Name} to _bsolve block, based on sigLongest {sigLongest}");
+                        _transientBuffersForElementSets[sigLongest].LinkTo(_bSolveStore);
                         // put sigLongest into ElementSetsOfTerm1Ready
                         Log.Trace($"sigLongest {sigLongest} is now in the ElementSetsOfTerm1Ready");
-                        _calculateAndStoreFromInputAndAsyncTermsObservableData.ElementSetsOfTerm1Ready[sigLongest] = default;
+                        _solveAndStoreObservableData.ElementSetsOfTerm1Ready[sigLongest] = default;
                         //remove this sigLongest from the FetchingElementSetsOfTerm1 dictionary
-                        _calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1.Remove(sigLongest);
+                        _solveAndStoreObservableData.FetchingElementSetsOfTerm1.Remove(sigLongest);
                         Log.Trace($"sigLongest {sigLongest} has been removed from the ElementSetsOfTerm1Ready");
                     }
                     else {
@@ -187,7 +206,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         #endregion
 
         protected override void CleanUp(Exception e) {
-            Log.Trace("Starting CalculateAndStoreFromInputAndAsyncTerms Cleanup and calling base.Cleanup");
+            Log.Trace("Starting SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult> Cleanup and calling base.Cleanup");
             base.CleanUp(e);
             Log.Trace("Cleanup after base");
             // dispose of the asyncFetchCheckTimer
@@ -197,14 +216,19 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
         }
 
         #region Dataflow Input and Output blocks Accessors
-        public override ITargetBlock<IInputMessage<string, double>> InputBlock { get { return this._headBlock; } }
+        public override ITargetBlock<IInputMessage<ITStoreP, ITSolveP>> InputBlock { get { return this._headBlock; } }
+
+        public Action<IInputMessage<ITStoreP, ITSolveP>> SolveAndStoreFunc { get => _solveAndStoreFunc; set => _solveAndStoreFunc = value; }
         #endregion Dataflow Input and Output blocks Accessors
 
-        class DynamicBuffers : DataDispatcher<IInternalMessage<string>, KeySignature<string>> {
-            internal static ILog Log = LogProvider.For<DynamicBuffers>();
-            CalculateAndStoreFromInputAndAsyncTerms _parent;
+        class DynamicBuffers : DataDispatcher<IInternalMessage, KeySignature<string>> {
+            internal ILog Log { get; }
 
-            public DynamicBuffers(CalculateAndStoreFromInputAndAsyncTerms parent) : base(@out => @out.Value.sig) {
+            SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult> _parent;
+
+            public DynamicBuffers(SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult> parent) : base(@out => @out.sig) {
+                Log = LogProvider.GetLogger(nameof(DynamicBuffers));
+
                 Log.Trace("Constructor Starting");
                 _parent = parent;
                 Log.Trace("Constructor Finished");
@@ -222,7 +246,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             /// </summary>
             /// <param name="sig">The sig.</param>
             /// <returns>Dataflow&lt;InternalMessage&lt;System.String&gt;&gt;.</returns>
-            protected override Dataflow<IInternalMessage<string>> CreateChildFlow(KeySignature<string> sig) {
+            protected override Dataflow<IInternalMessage> CreateChildFlow(KeySignature<string> sig) {
                 // dynamically create a TransientBuffer buffer. The dispatchKey is based upon the value of sig
                 // the TransientBuffer will create the async tasks to fetch each individual term of the sig
                 Log.Trace("CreateChildFlow is creating _buffer");
@@ -235,16 +259,16 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 // The child flow created within a DataDispatcher is automatically attached to the action block which creates it
                 // so no need to RegisterDependency of this _transientBuffer to the _bDynamicBuffers
 
-                // Store the hashSet of elements for Term1 (as key) and this _transientBuffer (as value) into _transientBuffersForElementSetsOfTerm1
-                Log.Trace($"CreateChildFlow is storing {_transientBuffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
+                // Store the hashSet of elements for Term1 (as key) and this _transientBuffer (as value) into _transientBuffersForElementSets
+                Log.Trace($"CreateChildFlow is storing {_transientBuffer.Name} in _transientBuffersForElementSets keyed by {sig.Longest()}");
                 try
                 {
-                    _parent._transientBuffersForElementSetsOfTerm1[sig.Longest()] = _transientBuffer;
+                    _parent._transientBuffersForElementSets[0][sig.Longest()] = _transientBuffer;
                 }
                 catch
                 {
-                    Log.Error($"error when trying to store {_transientBuffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
-                    throw new Exception($"error when trying to store {_transientBuffer.Name} in _transientBuffersForElementSetsOfTerm1 keyed by {sig.Longest()}");
+                    Log.Error($"error when trying to store {_transientBuffer.Name} in _transientBuffersForElementSets keyed by {sig.Longest()}");
+                    throw new Exception($"error when trying to store {_transientBuffer.Name} in _transientBuffersForElementSets keyed by {sig.Longest()}");
                 }
 
 
@@ -257,31 +281,34 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
             /// <summary>
             /// Transient Buffer node for a single sig
             /// </summary>
-            class TransientBuffer : Dataflow<IInternalMessage<string>, IInternalMessage<string>> {
-                internal static ILog Log = LogProvider.For<TransientBuffer>();
+            class TransientBuffer : Dataflow<IInternalMessage, IInternalMessage> {
+                internal ILog Log { get; }
+
                 // The TPL block that buffers the data.
-                BufferBlock<IInternalMessage<string>> _buffer;
+                BufferBlock<IInternalMessage> _buffer;
                 DynamicBuffers _parent;
 
-                public TransientBuffer(KeySignature<string> sig, DynamicBuffers parent) : base(parent._parent._calculateAndStoreFromInputAndAsyncTermsOptions) {
+                public TransientBuffer(KeySignature<string> sig, DynamicBuffers parent) : base(parent._parent._solveAndStoreOptions) {
+                    Log = LogProvider.GetLogger(nameof(TransientBuffer));
+
                     Log.Trace("Constructor Starting");
                     this._parent = parent;
                     Log.Trace($"ElementSet: {sig.Longest().ToString()}");
 
                     Log.Trace("Creating _buffer");
-                    _buffer = new BufferBlock<IInternalMessage<string>>();
+                    _buffer = new BufferBlock<IInternalMessage>();
 
                     Log.Trace("Registering _buffer");
                     RegisterChild(_buffer);
                     // critical section
                     // iterate each individual element of the sig, and get those that are not already present in the COD FetchingIndividualElementsOfTerm1
                     foreach(var element in sig.IndividualElements) {
-                        if(!parent._parent._calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1.ContainsKey(element)) {
+                        if(!parent._parent._solveAndStoreObservableData.FetchingIndividualElementsOfTerm1.ContainsKey(element)) {
                             // For each element that is not already being fetched, start the async task to fetch it
-                            Log.Trace($"Fetching AsyncWebGet for {element} and storing the task in FetchingIndividualElementsOfTerm1 indexed by {element}");
+                            Log.Trace($"Fetching AsyncWebGet for {element} and storing the task in FetchingIndividualElementsOfTerm1 indexed by [{termid}][{element}]");
                             // call the async function that fetches the information for each individual element in the elementSet
                             // record the individual element and it's corresponding task in the FetchingIndividualElementsOfTerm1
-                            parent._parent._calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingIndividualElementsOfTerm1[element] = parent._parent._webGet.AsyncWebGet<double>(element);
+                            parent._parent._solveAndStoreObservableData.FetchingIndividualElementsOfTerm1[element] = parent._parent._webGet.AsyncWebGet<double>(element);
                         }
                     }
                     // Record into FetchingElementSetsOfTerm1 the sig.Longest as key, and for the data,
@@ -293,7 +320,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                         x[element] = default;
                     }
                     Log.Trace($"Creating an entry for FetchingElementSetsOfTerm1. Key is {sig.Longest()} data is x");
-                    parent._parent._calculateAndStoreFromInputAndAsyncTermsObservableData.FetchingElementSetsOfTerm1[sig.Longest()] = x;
+                    parent._parent._solveAndStoreObservableData.FetchingElementSetsOfTerm1[sig.Longest()] = x;
                     // If the asyncFetchCheckTimer is not enabled, enable it now.
                     if(!parent._parent.asyncFetchCheckTimer.Enabled) {
                         parent._parent.asyncFetchCheckTimer.Enabled = true;
@@ -312,31 +339,34 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
                 }
 
                 #region Dataflow Input and Output blocks Accessors
-                public override ITargetBlock<IInternalMessage<string>> InputBlock { get { return this._buffer; } }
+                public override ITargetBlock<IInternalMessage> InputBlock { get { return this._buffer; } }
 
-                public override ISourceBlock<IInternalMessage<string>> OutputBlock { get { return this._buffer; } }
+                public override ISourceBlock<IInternalMessage> OutputBlock { get { return this._buffer; } }
                 #endregion Dataflow Input and Output blocks Accessors
             }
         }
     }
 
-    public class ParseSingleInputStringFormattedAsJSONToInputMessage : Dataflow<string, InputMessage<string, double>> {
-        internal static ILog Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONToInputMessage>();
-        // Head and tail 
-        TransformBlock<string, InputMessage<string, double>> _transformer;
+    public abstract class JSONSingleIMToInputMessage<ITStoreP, ITSolveP> : Dataflow<string, InputMessage<ITStoreP, ITSolveP>> {
+        internal ILog Log { get; }
 
-        public ParseSingleInputStringFormattedAsJSONToInputMessage() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
+        // Head and tail 
+        TransformBlock<string, InputMessage<ITStoreP, ITSolveP>> _transformer;
+
+        public JSONSingleIMToInputMessage() : this(SolveAndStoreOptions.Default) {
         }
 
-        public ParseSingleInputStringFormattedAsJSONToInputMessage(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
+        public JSONSingleIMToInputMessage(SolveAndStoreOptions solveAndStoreOptions) : base(solveAndStoreOptions) {
+            Log = LogProvider.GetLogger(nameof(JSONSingleIMToInputMessage<ITStoreP, ITSolveP>));
+
             Log.Trace("Constructor starting");
             // create the output via a TransformBlock
-            _transformer = new TransformBlock<string, InputMessage<string, double>>(_input => {
-                InputMessage<string, double> im;
+            _transformer = new TransformBlock<string, InputMessage<ITStoreP, ITSolveP>>(_input => {
+                InputMessage<ITStoreP, ITSolveP> im;
                 try
                 {
                     Log.Trace("Deserialize Starting");
-                    im = JsonConvert.DeserializeObject<InputMessage<string, double>>(_input);
+                    im = JsonConvert.DeserializeObject<InputMessage<ITStoreP, ITSolveP>>(_input);
                     Log.Trace("Deserialize Finished");
                 }
                 catch
@@ -353,35 +383,38 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
 
         public override ITargetBlock<string> InputBlock { get { return _transformer; } }
 
-        public override ISourceBlock<InputMessage<string, double>> OutputBlock { get { return _transformer; } }
+        public override ISourceBlock<InputMessage<ITStoreP, ITSolveP>> OutputBlock { get { return _transformer; } }
     }
     /*
-    public class ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection : Dataflow<string, IEnumerable<IInputMessage<string, double>>> {
-        internal static ILog Log = LogProvider.For<ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection>();
-        // Head and tail 
-        TransformManyBlock<string, IEnumerable<IInputMessage<string, double>>> _transformer;
+    public class JSONCollectionIMToInputMessageCollection<ITStoreP, ITSolveP, TResult> : Dataflow<string, IEnumerable<IInputMessage<ITStoreP, ITSolveP>>> {
+        internal ILog Log { get; }
 
-        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection() : this(CalculateAndStoreFromInputAndAsyncTermsOptions.Default) {
+        // Head and tail 
+        TransformManyBlock<string, IEnumerable<IInputMessage<ITStoreP, ITSolveP>>> _transformer;
+
+        public JSONCollectionIMToInputMessageCollection() : this(SolveAndStoreOptions.Default) {
         }
 
-        public ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection(CalculateAndStoreFromInputAndAsyncTermsOptions calculateAndStoreFromInputAndAsyncTermsOptions) : base(calculateAndStoreFromInputAndAsyncTermsOptions) {
-            Log.Trace("Constructor for ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection starting");
+        public JSONCollectionIMToInputMessageCollection(SolveAndStoreOptions solveAndStoreOptions) : base(solveAndStoreOptions) {
+                    Log = LogProvider.GetLogger( nameof(JSONCollectionIMToInputMessageCollection<ITStoreP, ITSolveP, TResult>));
+
+            Log.Trace("Constructor for JSONCollectionIMToInputMessageCollection starting");
             // create the output via a TransformManyBlock
-            _transformer = new TransformManyBlock<string, IInputMessage<string, double>>(new Func<string, IEnumerable<IInputMessage<string, double>>>(this.splitter),
-                                                                                                      calculateAndStoreFromInputAndAsyncTermsOptions.ToExecutionBlockOption())
-                .ToDataflow<string, IEnumerable<IInputMessage<string, double>>>(calculateAndStoreFromInputAndAsyncTermsOptions,
+            _transformer = new TransformManyBlock<string, IInputMessage<ITStoreP, ITSolveP>>(new Func<string, IEnumerable<IInputMessage<ITStoreP, ITSolveP>>>(this.splitter),
+                                                                                                      solveAndStoreOptions.ToExecutionBlockOption())
+                .ToDataflow<string, IEnumerable<IInputMessage<ITStoreP, ITSolveP>>>(solveAndStoreOptions,
                                                                                 "_transformer");
             RegisterChild(_transformer);
-            Log.Trace("Constructor for ParseSingleInputStringFormattedAsJSONCollectionToInputMessageCollection Finished");
+            Log.Trace("Constructor for JSONCollectionIMToInputMessageCollection Finished");
         }
 
         // Have to use a named method in order to use Yield to return an IEnumerable
-        IEnumerable<IInputMessage<string, double>> splitter(string _input) {
+        IEnumerable<IInputMessage<ITStoreP, ITSolveP>> splitter(string _input) {
             Log.Trace("Deserialize Starting");
-            IEnumerable<IInputMessage<string, double>> _imcoll;
+            IEnumerable<IInputMessage<ITStoreP, ITSolveP>> _imcoll;
             try
             {
-                _imcoll = JsonConvert.DeserializeObject<IEnumerable<IInputMessage<string, double>>>(_input);
+                _imcoll = JsonConvert.DeserializeObject<IEnumerable<IInputMessage<ITStoreP, ITSolveP>>>(_input);
             }
             catch
             {
@@ -398,7 +431,7 @@ namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms {
 
         public override ITargetBlock<string> InputBlock { get { return _transformer; } }
 
-        public override ISourceBlock<IEnumerable<IInputMessage<string, double>>> OutputBlock { get { return _transformer; } }
+        public override ISourceBlock<IEnumerable<IInputMessage<ITStoreP, ITSolveP>>> OutputBlock { get { return _transformer; } }
     }
     */
 }

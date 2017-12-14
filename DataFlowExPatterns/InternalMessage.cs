@@ -1,25 +1,28 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Swordfish.NET.Collections;
 
-namespace ATAP.DataFlowExPatterns.CalculateAndStoreFromInputAndAsyncTerms
+namespace ATAP.DataFlowExPatterns.SolveAndStoreFromInputAndAsyncTerms
 {
-    public partial class CalculateAndStoreFromInputAndAsyncTerms  {
-        public class InternalMessage<TKeyTerm1> : IInternalMessage<TKeyTerm1>
+    public abstract partial class SolveAndStoreFromInputAndAsyncTerms<ITStoreP, ITSolveP, TResult>
+    {
+
+        internal class InternalMessage : InputMessage<ITStoreP, ITSolveP> , IInternalMessage
         {
-            (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToCalculate) _value;
+            private readonly KeySignature<string> _sig;
+            private readonly bool _isReadyToSolve;
+            //(string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToSolve) _value;
 
-            public InternalMessage((string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToCalculate) value)
+            public InternalMessage(ITStoreP storeP, ITSolveP solveP, KeySignature<string> sig, bool isReadyToSolve) :base (storeP, solveP)
             {
-                _value = value;
+                this._sig=sig;
+                this._isReadyToSolve = isReadyToSolve;
             }
-
-            public (string k1, string k2, IReadOnlyDictionary<TKeyTerm1, double> terms1, KeySignature<string> sig, bool isReadyToCalculate) Value
-            {
-                get => _value; set => _value =
-value;
-            }
-        }
+            public KeySignature<string> sig { get { return _sig; } }
+            public bool IsReadyToSolve { get { return _isReadyToSolve; } }
+    }
     }
 }
